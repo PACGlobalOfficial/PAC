@@ -1263,18 +1263,6 @@ void CConnman::ThreadSocketHandler()
         SOCKET hSocketMax = 0;
         bool have_fds = false;
 
-#ifndef WIN32
-        // We add a pipe to the read set so that the select() call can be woken up from the outside
-        // This is done when data is available for sending and at the same time optimistic sending was disabled
-        // when pushing the data.
-        // This is currently only implemented for POSIX compliant systems. This means that Windows will fall back to
-        // timing out after 50ms and then trying to send. This is ok as we assume that heavy-load daemons are usually
-        // run on Linux and friends.
-        FD_SET(wakeupPipe[0], &fdsetRecv);
-        hSocketMax = std::max(hSocketMax, (SOCKET)wakeupPipe[0]);
-        have_fds = true;
-#endif
-
         BOOST_FOREACH(const ListenSocket& hListenSocket, vhListenSocket) {
             FD_SET(hListenSocket.socket, &fdsetRecv);
             hSocketMax = std::max(hSocketMax, hListenSocket.socket);
@@ -1285,17 +1273,6 @@ void CConnman::ThreadSocketHandler()
             LOCK(cs_vNodes);
             BOOST_FOREACH(CNode* pnode, vNodes)
             {
-                // Implement the following logic:
-                // * If there is data to send, select() for sending data. As this only
-                //   happens when optimistic write failed, we choose to first drain the
-                //   write buffer in this case before receiving more. This avoids
-                //   needlessly queueing received data, if the remote peer is not themselves
-                //   receiving data. This means properly utilizing TCP flow control signalling.
-                // * Otherwise, if there is space left in the receive buffer, select() for
-                //   receiving data.
-                // * Hand off all complete messages to the processor, to be handled without
-                //   blocking here.
-
                 bool select_recv = !pnode->fPauseRecv;
                 bool select_send;
                 {
@@ -1321,10 +1298,8 @@ void CConnman::ThreadSocketHandler()
             }
         }
 
-        wakeupSelectNeeded = true;
         int nSelect = select(have_fds ? hSocketMax + 1 : 0,
                              &fdsetRecv, &fdsetSend, &fdsetError, &timeout);
-        wakeupSelectNeeded = false;
         if (interruptNet)
             return;
 
@@ -1343,19 +1318,6 @@ void CConnman::ThreadSocketHandler()
                 return;
         }
 
-#ifndef WIN32
-        // drain the wakeup pipe
-        if (FD_ISSET(wakeupPipe[0], &fdsetRecv)) {
-            LogPrint("net", "woke up select()\n");
-            char buf[128];
-            while (true) {
-                int r = read(wakeupPipe[0], buf, sizeof(buf));
-                if (r <= 0) {
-                    break;
-                }
-            }
-        }
-#endif
 
         //
         // Accept new connections
@@ -1397,58 +1359,55 @@ void CConnman::ThreadSocketHandler()
             }
             if (recvSet || errorSet)
             {
+                // typical socket buffer is 8K-64K
+                char pchBuf[0x10000];
+                int nBytes = 0;
                 {
+                    LOCK(pnode->cs_hSocket);
+                    if (pnode->hSocket == INVALID_SOCKET)
+                        continue;
+                    nBytes = recv(pnode->hSocket, pchBuf, sizeof(pchBuf), MSG_DONTWAIT);
+                }
+                if (nBytes > 0)
+                {
+                    bool notify = false;
+                    if (!pnode->ReceiveMsgBytes(pchBuf, nBytes, notify))
+                        pnode->CloseSocketDisconnect();
+                    RecordBytesRecv(nBytes);
+                    if (notify) {
+                        size_t nSizeAdded = 0;
+                        auto it(pnode->vRecvMsg.begin());
+                        for (; it != pnode->vRecvMsg.end(); ++it) {
+                            if (!it->complete())
+                                break;
+                            nSizeAdded += it->vRecv.size() + CMessageHeader::HEADER_SIZE;
+                        }
+                        {
+                            LOCK(pnode->cs_vProcessMsg);
+                            pnode->vProcessMsg.splice(pnode->vProcessMsg.end(), pnode->vRecvMsg, pnode->vRecvMsg.begin(), it);
+                            pnode->nProcessQueueSize += nSizeAdded;
+                            pnode->fPauseRecv = pnode->nProcessQueueSize > nReceiveFloodSize;
+                        }
+                        WakeMessageHandler();
+                    }
+                }
+                else if (nBytes == 0)
+                {
+                    // socket closed gracefully
+                    if (!pnode->fDisconnect) {
+                        LogPrint("net", "socket closed\n");
+                    }
+                    pnode->CloseSocketDisconnect();
+                }
+                else if (nBytes < 0)
+                {
+                    // error
+                    int nErr = WSAGetLastError();
+                    if (nErr != WSAEWOULDBLOCK && nErr != WSAEMSGSIZE && nErr != WSAEINTR && nErr != WSAEINPROGRESS)
                     {
-                        // typical socket buffer is 8K-64K
-                        char pchBuf[0x10000];
-                        int nBytes = 0;
-                        {
-                            LOCK(pnode->cs_hSocket);
-                            if (pnode->hSocket == INVALID_SOCKET)
-                                continue;
-                            nBytes = recv(pnode->hSocket, pchBuf, sizeof(pchBuf), MSG_DONTWAIT);
-                        }
-                        if (nBytes > 0)
-                        {
-                            bool notify = false;
-                            if (!pnode->ReceiveMsgBytes(pchBuf, nBytes, notify))
-                                pnode->CloseSocketDisconnect();
-                            RecordBytesRecv(nBytes);
-                            if (notify) {
-                                size_t nSizeAdded = 0;
-                                auto it(pnode->vRecvMsg.begin());
-                                for (; it != pnode->vRecvMsg.end(); ++it) {
-                                    if (!it->complete())
-                                        break;
-                                    nSizeAdded += it->vRecv.size() + CMessageHeader::HEADER_SIZE;
-                                }
-                                {
-                                    LOCK(pnode->cs_vProcessMsg);
-                                    pnode->vProcessMsg.splice(pnode->vProcessMsg.end(), pnode->vRecvMsg, pnode->vRecvMsg.begin(), it);
-                                    pnode->nProcessQueueSize += nSizeAdded;
-                                    pnode->fPauseRecv = pnode->nProcessQueueSize > nReceiveFloodSize;
-                                }
-                                WakeMessageHandler();
-                            }
-                        }
-                        else if (nBytes == 0)
-                        {
-                            // socket closed gracefully
-                            if (!pnode->fDisconnect)
-                                LogPrint("net", "socket closed\n");
-                            pnode->CloseSocketDisconnect();
-                        }
-                        else if (nBytes < 0)
-                        {
-                            // error
-                            int nErr = WSAGetLastError();
-                            if (nErr != WSAEWOULDBLOCK && nErr != WSAEMSGSIZE && nErr != WSAEINTR && nErr != WSAEINPROGRESS)
-                            {
-                                if (!pnode->fDisconnect)
-                                    LogPrintf("socket recv error %s\n", NetworkErrorString(nErr));
-                                pnode->CloseSocketDisconnect();
-                            }
-                        }
+                        if (!pnode->fDisconnect)
+                            LogPrintf("socket recv error %s\n", NetworkErrorString(nErr));
+                        pnode->CloseSocketDisconnect();
                     }
                 }
             }
@@ -1515,23 +1474,6 @@ void CConnman::WakeMessageHandler()
     condMsgProc.notify_one();
 }
 
-void CConnman::WakeSelect()
-{
-#ifndef WIN32
-    if (wakeupPipe[1] == -1) {
-        return;
-    }
-
-    LogPrint("net", "waking up select()\n");
-
-    char buf[1];
-    if (write(wakeupPipe[1], buf, 1) != 1) {
-        LogPrint("net", "write to wakeupPipe failed\n");
-    }
-#endif
-
-    wakeupSelectNeeded = false;
-}
 
 
 
@@ -2193,7 +2135,14 @@ void CConnman::ThreadMessageHandler()
 {
     while (!flagInterruptMsgProc)
     {
-        std::vector<CNode*> vNodesCopy = CopyNodeVector();
+        std::vector<CNode*> vNodesCopy;
+        {
+            LOCK(cs_vNodes);
+            vNodesCopy = vNodes;
+            for (CNode* pnode : vNodesCopy) {
+                pnode->AddRef();
+            }
+        }
 
         bool fMoreWork = false;
 
@@ -3154,9 +3103,6 @@ CNode::CNode(NodeId idIn, ServiceFlags nLocalServicesIn, int nMyStartingHeightIn
 CNode::~CNode()
 {
     CloseSocket(hSocket);
-
-    if (pfilter)
-        delete pfilter;
 }
 
 void CNode::AskFor(const CInv& inv, int64_t doubleRequestDelay)
@@ -3219,7 +3165,7 @@ bool CConnman::NodeFullyConnected(const CNode* pnode)
     return pnode && pnode->fSuccessfullyConnected && !pnode->fDisconnect;
 }
 
-void CConnman::PushMessage(CNode* pnode, CSerializedNetMsg&& msg, bool allowOptimisticSend)
+void CConnman::PushMessage(CNode* pnode, CSerializedNetMsg&& msg, bool unused)
 {
     size_t nMessageSize = msg.data.size();
     size_t nTotalSize = nMessageSize + CMessageHeader::HEADER_SIZE;
@@ -3236,9 +3182,7 @@ void CConnman::PushMessage(CNode* pnode, CSerializedNetMsg&& msg, bool allowOpti
     size_t nBytesSent = 0;
     {
         LOCK(pnode->cs_vSend);
-        bool hasPendingData = !pnode->vSendMsg.empty();
-        bool optimisticSend(allowOptimisticSend && pnode->vSendMsg.empty());
-
+ 
         //log total amount of bytes per command
         pnode->mapSendBytesPerMsgCmd[msg.command] += nTotalSize;
         pnode->nSendSize += nTotalSize;
@@ -3248,13 +3192,6 @@ void CConnman::PushMessage(CNode* pnode, CSerializedNetMsg&& msg, bool allowOpti
         pnode->vSendMsg.push_back(std::move(serializedHeader));
         if (nMessageSize)
             pnode->vSendMsg.push_back(std::move(msg.data));
-
-        // If write queue empty, attempt "optimistic write"
-        if (optimisticSend == true)
-            nBytesSent = SocketSendData(pnode);
-        // wake up select() call in case there was no pending data before (so it was not selecting this socket for sending)
-        else if (!hasPendingData && wakeupSelectNeeded)
-            WakeSelect();
     }
     if (nBytesSent)
         RecordBytesSent(nBytesSent);
@@ -3302,17 +3239,10 @@ std::vector<CNode*> CConnman::CopyNodeVector(std::function<bool(const CNode* pno
     LOCK(cs_vNodes);
     for(size_t i = 0; i < vNodes.size(); ++i) {
         CNode* pnode = vNodes[i];
-        if (!cond(pnode))
-            continue;
         pnode->AddRef();
         vecNodesCopy.push_back(pnode);
     }
     return vecNodesCopy;
-}
-
-std::vector<CNode*> CConnman::CopyNodeVector()
-{
-    return CopyNodeVector(AllNodes);
 }
 
 void CConnman::ReleaseNodeVector(const std::vector<CNode*>& vecNodes)
