@@ -223,7 +223,6 @@ public:
         consensus.nGovernanceFilterElements = 20000;
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMasternodeCollateral = 500000 * COIN;
-        consensus.nCollateralBugHeight = 331460;
         consensus.BIP34Height = 951;
         consensus.BIP34Hash = uint256S("0x000001f35e70f7c5705f64c6c5cc3dea9449e74d5b5c7cf74dad1bcca14a8012");
         consensus.BIP65Height = 619382;
@@ -398,41 +397,40 @@ class CTestNetParams : public CChainParams {
 public:
     CTestNetParams() {
         strNetworkID = "test";
-        consensus.nSubsidyHalvingInterval = NEVER32; // unused
+        consensus.nSubsidyHalvingInterval = NEVER32;
         consensus.nMasternodePaymentsStartBlock = 50;
         consensus.nMasternodePaymentsIncreaseBlock = NEVER32;
         consensus.nMasternodePaymentsIncreasePeriod = NEVER32;
         consensus.nInstantSendConfirmationsRequired = 2;
         consensus.nInstantSendKeepLock = 6;
-        consensus.nInstantSendSigsRequired = 6;
-        consensus.nInstantSendSigsTotal = 10;
-        consensus.nBudgetPaymentsStartBlock = NEVER32;
-        consensus.nBudgetPaymentsCycleBlocks = NEVER32;
-        consensus.nBudgetPaymentsWindowBlocks = NEVER32;
-        consensus.nSuperblockStartBlock = NEVER32;
-        consensus.nSuperblockStartHash = uint256(); // do not check this on testnet
-        consensus.nSuperblockCycle = 24; // Superblocks can be issued hourly on testnet
+        consensus.nInstantSendSigsRequired = 2;
+        consensus.nInstantSendSigsTotal = 4;
+        consensus.nBudgetPaymentsStartBlock = 50;
+        consensus.nBudgetPaymentsCycleBlocks = 50;
+        consensus.nBudgetPaymentsWindowBlocks = 100;
+        consensus.nSuperblockStartBlock = 100;
+        consensus.nSuperblockStartHash = uint256();
+        consensus.nSuperblockCycle = 24;
         consensus.nGovernanceMinQuorum = 1;
         consensus.nGovernanceFilterElements = 500;
         consensus.nMasternodeMinimumConfirmations = 15;
-        consensus.nMasternodeCollateral = 5000 * COIN;
-        consensus.nCollateralBugHeight = 0;
+        consensus.nMasternodeCollateral = 1000 * COIN;
         consensus.BIP34Height = 1;
         consensus.BIP34Hash = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
         consensus.BIP65Height = 0;
         consensus.BIP66Height = 0;
         consensus.DIP0001Height = 1;
         consensus.DIP0003Height = 50;
-        consensus.DIP0003EnforcementHeight = 250;
+        consensus.DIP0003EnforcementHeight = 500;
         consensus.DIP0003EnforcementHash = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
         consensus.powLimit = uint256S("0000fffff0000000000000000000000000000000000000000000000000000000");
         consensus.posLimit = uint256S("007ffff000000000000000000000000000000000000000000000000000000000");
         consensus.nLastPoWBlock = 125;
-        consensus.nPowTargetTimespan = 450;
-        consensus.nPowTargetSpacing = 150;
+        consensus.nPowTargetTimespan = 60;
+        consensus.nPowTargetSpacing = 60;
         consensus.nPosTargetSpacing = consensus.nPowTargetSpacing;
         consensus.nPosTargetTimespan = consensus.nPowTargetTimespan;
-        consensus.nMinimumStakeValue = 10000 * COIN;
+        consensus.nMinimumStakeValue = 100 * COIN;
         consensus.nStakeMinAge = 10 * 60;
         consensus.nStakeMaxAge = 60 * 60 * 24 * 30;
         consensus.nModifierInterval = 60 * 20;
@@ -442,40 +440,41 @@ public:
         consensus.nPowDGWHeight = NEVER32; // unused
         consensus.nRuleChangeActivationThreshold = 1512;
         consensus.nMinerConfirmationWindow = 2016;
+
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
-        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = NEVER64;
 
         // Deployment of BIP68, BIP112, and BIP113.
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].bit = 0;
-        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = NEVER64;
 
         // Deployment of DIP0001
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].bit = 1;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nTimeout = NEVER64;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nThreshold = 50;
 
         // Deployment of BIP147
         consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].bit = 2;
-        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nTimeout = NEVER64;
         consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nThreshold = 50;
 
         // Deployment of DIP0003
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].bit = 3;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 50;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 10;
 
         // Deployment of DIP0008
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].bit = 4;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 10;
 
@@ -493,16 +492,26 @@ public:
         nDefaultPort = 29999;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1567646780, 24712, 0x1f00ffff, 1, 0 * COIN, true);
+        uint32_t nTime = 1573325000;
+        uint32_t nNonce = 0;
+
+        if (nNonce == 0) {
+            while (UintToArith256(genesis.GetHash()) >
+                   UintToArith256(consensus.powLimit))
+            {
+		nNonce++;
+                genesis = CreateGenesisBlock(nTime, nNonce, 0x1f00ffff, 1, 0 * COIN, true);
+                if (nNonce % 128 == 0) printf("\rgenesis %08x", nNonce);
+            }
+        }
+
+        genesis = CreateGenesisBlock(nTime, nNonce, 0x1f00ffff, 1, 0 * COIN, true);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x0000d3b6747d6f7fe976c218fe7834d2fa79b661a6debe69a0af9b8faea3b0fa"));
 
         vFixedSeeds.clear();
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
         vSeeds.clear();
-        vSeeds.push_back(CDNSSeedData("pacglobal.io", "seed2.pacglobal.io"));
-        vSeeds.push_back(CDNSSeedData("pacglobal.io", "seed3.pacglobal.io"));
 
         // Testnet PACGlobal addresses start with 'y'
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,140);
@@ -519,25 +528,26 @@ public:
         nExtCoinType = 1;
 
         // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_5_60] = llmq5_60;
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
         consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
         consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
-        consensus.llmqChainLocks = Consensus::LLMQ_50_60;
-        consensus.llmqForInstaPAC = Consensus::LLMQ_50_60;
+        consensus.llmqChainLocks = Consensus::LLMQ_5_60;
+        consensus.llmqForInstaPAC = Consensus::LLMQ_5_60;
 
-        fMiningRequiresPeers = true;
+        fMiningRequiresPeers = false;
         fDefaultConsistencyChecks = false;
-        fRequireStandard = false;
+        fRequireStandard = true;
         fRequireRoutableExternalIP = false;
         fMineBlocksOnDemand = false;
-        fAllowMultipleAddressesFromGroup = false;
+        fAllowMultipleAddressesFromGroup = true;
         fAllowMultiplePorts = true;
 
         nPoolMinParticipants = 3;
         nPoolMaxParticipants = 5;
         nFulfilledRequestExpireTime = 5*60; // fulfilled requests expire in 5 minutes
 
-        vSporkAddresses = {"yarEgAKyKCAanupC45vXhdWe6DAQf7RKPh"};
+        vSporkAddresses = {"yTpFjxs3Rtwe7MXfC1i5XACz2K5UYi2GpL"};
         nMinSporkKeys = 1;
         fBIP9CheckMasternodesUpgraded = true;
 
@@ -582,7 +592,6 @@ public:
         consensus.nGovernanceFilterElements = 500;
         consensus.nMasternodeMinimumConfirmations = 1;
         consensus.nMasternodeCollateral = 500000 * COIN;
-        consensus.nCollateralBugHeight = 0;
         consensus.BIP34Height = 1; // BIP34 activated immediately on devnet
         consensus.BIP65Height = 1; // BIP65 activated immediately on devnet
         consensus.BIP66Height = 1; // BIP66 activated immediately on devnet
