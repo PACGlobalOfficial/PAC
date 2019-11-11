@@ -104,8 +104,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
             reason = "bare-multisig";
             return false;
         } else if (txout.IsDust(MinRelayFee())) {
-            reason = "dust";
-            return false;
+            return true;
         }
     }
 

@@ -118,7 +118,7 @@ static CBlock FindDevNetGenesisBlock(const Consensus::Params& params, const CBlo
 static Consensus::LLMQParams llmq5_60 = {
         .type = Consensus::LLMQ_5_60,
         .name = "llmq_5_60",
-        .size = 5,
+        .size = 3,
         .minSize = 3,
         .threshold = 3,
 
@@ -420,12 +420,12 @@ public:
         consensus.BIP65Height = 0;
         consensus.BIP66Height = 0;
         consensus.DIP0001Height = 1;
-        consensus.DIP0003Height = 50;
-        consensus.DIP0003EnforcementHeight = 500;
+        consensus.DIP0003Height = 125;
+        consensus.DIP0003EnforcementHeight = 2500;
         consensus.DIP0003EnforcementHash = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
         consensus.powLimit = uint256S("0000fffff0000000000000000000000000000000000000000000000000000000");
         consensus.posLimit = uint256S("007ffff000000000000000000000000000000000000000000000000000000000");
-        consensus.nLastPoWBlock = 125;
+        consensus.nLastPoWBlock = consensus.DIP0003Height;
         consensus.nPowTargetTimespan = 60;
         consensus.nPowTargetSpacing = 60;
         consensus.nPosTargetSpacing = consensus.nPowTargetSpacing;
@@ -529,13 +529,10 @@ public:
 
         // long living quorum params
         consensus.llmqs[Consensus::LLMQ_5_60] = llmq5_60;
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
-        consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
-        consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
         consensus.llmqChainLocks = Consensus::LLMQ_5_60;
         consensus.llmqForInstaPAC = Consensus::LLMQ_5_60;
 
-        fMiningRequiresPeers = false;
+        fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
         fRequireStandard = true;
         fRequireRoutableExternalIP = false;

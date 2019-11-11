@@ -317,11 +317,13 @@ void CChainLocksHandler::TrySignChainTip()
                     }
                 }
 
+#if 0
                 if (txAge < WAIT_FOR_ISLOCK_TIMEOUT && !quorumInstantSendManager->IsLocked(txid)) {
                     LogPrint("chainlocks", "CChainLocksHandler::%s -- not signing block %s due to TX %s not being ixlocked and not old enough. age=%d\n", __func__,
                               pindexWalk->GetBlockHash().ToString(), txid.ToString(), txAge);
                     return;
                 }
+#endif
             }
 
             pindexWalk = pindexWalk->pprev;
