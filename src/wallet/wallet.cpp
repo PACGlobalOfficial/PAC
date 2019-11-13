@@ -2807,6 +2807,10 @@ bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAm
             if(!out.fSpendable)
                 continue;
 
+            // never select from collateral type amounts
+            if (out.tx->tx->vout[out.i].nValue == Params().GetConsensus().nMasternodeCollateral)
+                continue;
+
             if(nCoinType == ONLY_DENOMINATED) {
                 COutPoint outpoint = COutPoint(out.tx->GetHash(),out.i);
                 int nRounds = GetCappedOutpointPrivateSendRounds(outpoint);
