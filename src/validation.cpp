@@ -1095,8 +1095,10 @@ bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHea
     return true;
 }
 
-bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams)
+bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams, const char* str)
 {
+    LogPrintf("ReadBlockFromDisk(CDiskBlockPos)::called by %s\n", str);
+
     LOCK(cs_main);
     block.SetNull();
 
@@ -1120,8 +1122,10 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     return true;
 }
 
-bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams)
+bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams, const char* str)
 {
+    LogPrintf("ReadBlockFromDisk(CBlockIndex)::called by %s\n", str);
+
     CDiskBlockPos blockPos;
     {
         LOCK(cs_main);
@@ -3681,6 +3685,7 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
 
     CBlockIndex *pindexDummy = NULL;
     CBlockIndex *&pindex = ppindex ? *ppindex : pindexDummy;
+
     if (!AcceptBlockHeader(block, state, chainparams, &pindex))
         return false;
 
@@ -3725,11 +3730,10 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
     if (!IsInitialBlockDownload() && chainActive.Tip() == pindex->pprev)
         GetMainSignals().NewPoWValidBlock(pindex, pblock);
 
-    int nHeight = pindex->nHeight;
+    if (block.IsProofOfStake() ||
+        !IsInitialBlockDownload()) {
 
-    if (block.IsProofOfStake()) {
         LOCK(cs_main);
-
         CCoinsViewCache coins(pcoinsTip);
 
         const CTransaction& tx = *block.vtx[1];
@@ -3781,12 +3785,12 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
         }
     }
 
-    // test if hashproofofstake matches
+    //// hashproof test
     uint256 hashProofOfStake = uint256();
     if (block.IsProofOfStake())
     {
-	if(block.GetHash() == hashProofOfStake)
-	   return state.DoS(100, error("CheckBlock(): invalid proof of stake block\n"));
+        if(block.GetHash() == hashProofOfStake)
+           return state.DoS(100, error("CheckBlock(): invalid proof of stake block\n"));
 
         if(!CheckProofOfStake(block, hashProofOfStake))
            return state.DoS(100, error("CheckBlock(): check proof-of-stake failed for block %s\n", hashProofOfStake.ToString().c_str()));
@@ -3805,7 +3809,7 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
         CDiskBlockPos blockPos;
         if (dbp != NULL)
             blockPos = *dbp;
-        if (!FindBlockPos(state, blockPos, nBlockSize+8, nHeight, block.GetBlockTime(), dbp != NULL))
+        if (!FindBlockPos(state, blockPos, nBlockSize+8, pindex->nHeight, block.GetBlockTime(), dbp != NULL))
             return error("AcceptBlock(): FindBlockPos failed");
         if (dbp == NULL)
             if (!WriteBlockToDisk(block, blockPos, chainparams.MessageStart()))
