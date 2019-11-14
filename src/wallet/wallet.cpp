@@ -2807,6 +2807,10 @@ bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAm
             if(!out.fSpendable)
                 continue;
 
+            // never select from collateral type amounts
+            if (out.tx->tx->vout[out.i].nValue == Params().GetConsensus().nMasternodeCollateral)
+                continue;
+
             if(nCoinType == ONLY_DENOMINATED) {
                 COutPoint outpoint = COutPoint(out.tx->GetHash(),out.i);
                 int nRounds = GetCappedOutpointPrivateSendRounds(outpoint);
@@ -3345,11 +3349,6 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
             return false;
         }
 
-        if (recipient.nAmount < COIN && nExtraPayloadSize == 0)
-        {
-            strFailReason = _("Output amounts must be equal to or greater than 1 PAC");
-            return false;
-        }
         nValue += recipient.nAmount;
 
         if (recipient.fSubtractFeeFromAmount)
@@ -3435,20 +3434,6 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
                             fFirst = false;
                             txout.nValue -= nFeeRet % nSubtractFeeFromAmount;
                         }
-                    }
-
-                    if (txout.IsDust(MinRelayFee()))
-                    {
-                        if (recipient.fSubtractFeeFromAmount && nFeeRet > 0)
-                        {
-                            if (txout.nValue < 0)
-                                strFailReason = _("The transaction amount is too small to pay the fee");
-                            else
-                                strFailReason = _("The transaction amount is too small to send after the fee has been deducted");
-                        }
-                        else
-                            strFailReason = _("Transaction amount too small");
-                        return false;
                     }
                     txNew.vout.push_back(txout);
                 }

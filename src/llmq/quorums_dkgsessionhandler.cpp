@@ -147,10 +147,6 @@ bool CDKGSessionHandler::InitNewQuorum(int newQuorumHeight, const uint256& newQu
 
     curSession = std::make_shared<CDKGSession>(params, blsWorker, dkgManager);
 
-    if (!deterministicMNManager->IsDIP3Enforced(newQuorumHeight)) {
-        return false;
-    }
-
     auto mns = CLLMQUtils::GetAllQuorumMembers(params.type, newQuorumHash);
 
     if (!curSession->Init(newQuorumHeight, newQuorumHash, mns, activeMasternodeInfo.proTxHash)) {

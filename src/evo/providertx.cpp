@@ -185,12 +185,6 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValid
         if (mnList.HasUniqueProperty(ptx.keyIDOwner) || mnList.HasUniqueProperty(ptx.pubKeyOperator)) {
             return state.DoS(10, false, REJECT_DUPLICATE, "bad-protx-dup-key");
         }
-
-        if (!deterministicMNManager->IsDIP3Enforced(pindexPrev->nHeight)) {
-            if (ptx.keyIDOwner != ptx.keyIDVoting) {
-                return state.DoS(10, false, REJECT_INVALID, "bad-protx-key-not-same");
-            }
-        }
     }
 
     if (!CheckInputsHash(tx, ptx, state)) {
@@ -330,15 +324,10 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVal
             }
         }
 
-        if (!deterministicMNManager->IsDIP3Enforced(pindexPrev->nHeight)) {
-            if (dmn->pdmnState->keyIDOwner != ptx.keyIDVoting) {
-                return state.DoS(10, false, REJECT_INVALID, "bad-protx-key-not-same");
-            }
-        }
-
         if (!CheckInputsHash(tx, ptx, state)) {
             return false;
         }
+
         if (!CheckHashSig(ptx, dmn->pdmnState->keyIDOwner, state)) {
             return false;
         }
