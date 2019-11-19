@@ -221,6 +221,10 @@ public:
         consensus.nSuperblockCycle = 16616;
         consensus.nGovernanceMinQuorum = 10;
         consensus.nGovernanceFilterElements = 20000;
+        ///////////////////////////////////////////////
+        consensus.nGenerationAmount = 700000000 * COIN;
+        consensus.nGenerationHeight = 362250;
+        ///////////////////////////////////////////////
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMasternodeCollateral = 500000 * COIN;
         consensus.BIP34Height = 951;
@@ -229,7 +233,7 @@ public:
         consensus.BIP66Height = 245817;
         consensus.DIP0001Height = 12096;
         consensus.DIP0003Height = 330000;
-        consensus.DIP0003EnforcementHeight = NEVER32;
+        consensus.DIP0003EnforcementHeight = consensus.nGenerationHeight + 50;
         consensus.DIP0003EnforcementHash = uint256();
         consensus.powLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.posLimit = uint256S("0007ffff00000000000000000000000000000000000000000000000000000000");
@@ -250,39 +254,39 @@ public:
         consensus.nMinerConfirmationWindow = 2016;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
-        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = NEVER64;
 
         // Deployment of BIP68, BIP112, and BIP113.
         consensus.vDeployments[Consensus::DEPLOYMENT_CSV].bit = 0;
-        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_CSV].nTimeout = NEVER64;
 
         // Deployment of DIP0001
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].bit = 1;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nTimeout = NEVER64;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0001].nThreshold = 50;
 
         // Deployment of BIP147
         consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].bit = 2;
-        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nStartTime = 1573325000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nTimeout = NEVER64;
         consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_BIP147].nThreshold = 50;
 
         // Deployment of DIP0003
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].bit = 3;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 50;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 10;
 
         // Deployment of DIP0008
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].bit = 4;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = 1544655600;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = NEVER32;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 10;
 
@@ -413,6 +417,10 @@ public:
         consensus.nSuperblockCycle = 24;
         consensus.nGovernanceMinQuorum = 1;
         consensus.nGovernanceFilterElements = 500;
+        ///////////////////////////////////////////////
+        consensus.nGenerationAmount = 700000000 * COIN;
+        consensus.nGenerationHeight = 80;
+        ///////////////////////////////////////////////
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMasternodeCollateral = 1000 * COIN;
         consensus.BIP34Height = 1;
@@ -420,8 +428,8 @@ public:
         consensus.BIP65Height = 0;
         consensus.BIP66Height = 0;
         consensus.DIP0001Height = 1;
-        consensus.DIP0003Height = 125;
-        consensus.DIP0003EnforcementHeight = 25000;
+        consensus.DIP0003Height = 75;
+        consensus.DIP0003EnforcementHeight = consensus.nGenerationHeight + 50;
         consensus.DIP0003EnforcementHash = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
         consensus.powLimit = uint256S("0000fffff0000000000000000000000000000000000000000000000000000000");
         consensus.posLimit = uint256S("007ffff000000000000000000000000000000000000000000000000000000000");

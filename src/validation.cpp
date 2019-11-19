@@ -1193,7 +1193,10 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
 	    return 1000000 * COIN;
         }
 
-        return GetMasternodePayment(nPrevHeight + 1, 0) + (1 * COIN);
+        if (nPrevHeight + 1 < Params().GetConsensus().DIP0003EnforcementHeight)
+            return GetMasternodePayment(nPrevHeight + 1, 0) + (1 * COIN);
+        else
+            return GetMasternodePayment(nPrevHeight + 1, 0) + (100 * COIN);
     }
 
     // proof of work
@@ -2321,7 +2324,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     bool isProofOfStake = !block.IsProofOfWork();
     const auto& coinbaseTransaction = block.vtx[isProofOfStake];
-
     if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward)) {
         mapRejectedBlocks.insert(std::make_pair(block.GetHash(), GetTime()));
         return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"),
@@ -4920,6 +4922,11 @@ bool IsPoS() {
 int ConfirmationsPerNetwork() {
     return (Params().NetworkIDString() ==
             CBaseChainParams::TESTNET ? 20 : 100);
+}
+
+//! Returns whether full DIP3 enforcement is active
+bool FullDIP0003Mode() {
+    return (chainActive.Height() > Params().GetConsensus().DIP0003EnforcementHeight);
 }
 
 class CMainCleanup

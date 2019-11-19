@@ -366,8 +366,6 @@ struct CMutableTransaction
      */
     uint256 GetHash() const;
 
-    std::string ToString() const;
-
     friend bool operator==(const CMutableTransaction& a, const CMutableTransaction& b)
     {
         return a.GetHash() == b.GetHash();
@@ -378,6 +376,7 @@ struct CMutableTransaction
         return !(a == b);
     }
 
+    std::string ToString() const;
 };
 
 typedef std::shared_ptr<const CTransaction> CTransactionRef;

@@ -53,19 +53,21 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount blockRewar
 
     LogPrintf("        - blockValue %lld <= nSuperblockMaxValue %lld\n", blockValue, nSuperblockMaxValue);
 
+    bool isGenerationHeight = (nBlockHeight == Params().GetConsensus().nGenerationHeight);
+    if (isGenerationHeight)
+        return true;
+
     if (!CSuperblock::IsValidBlockHeight(nBlockHeight)) {
         // can't possibly be a superblock, so lets just check for block reward limits
         if (!isBlockRewardValueMet) {
-            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, only regular blocks are allowed at this height",
-                                    nBlockHeight, blockValue, blockReward);
+            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, only regular blocks are allowed at this height", nBlockHeight, blockValue, blockReward);
         }
         return isBlockRewardValueMet;
     }
 
     // bail out in case superblock limits were exceeded
     if (!isSuperblockMaxValueMet) {
-        strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded superblock max value",
-                                nBlockHeight, blockValue, nSuperblockMaxValue);
+        strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded superblock max value", nBlockHeight, blockValue, nSuperblockMaxValue);
         return false;
     }
 
@@ -82,8 +84,7 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount blockRewar
         // revert to block reward limits in this case
         LogPrintf("       - %s -- Superblocks are disabled, no superblocks allowed\n", __func__);
         if (!isBlockRewardValueMet) {
-            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, superblocks are disabled",
-                                    nBlockHeight, blockValue, blockReward);
+            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, superblocks are disabled", nBlockHeight, blockValue, blockReward);
         }
         return isBlockRewardValueMet;
     }
@@ -113,6 +114,22 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount blockRewar
 
 bool IsBlockPayeeValid(const CTransaction& txNew, int nBlockHeight, CAmount blockReward)
 {
+    // for nGenerationAmount - make sure this only ever goes to the spork key
+    if (nBlockHeight == Params().GetConsensus().nGenerationHeight) {
+        CBitcoinAddress address = Params().SporkAddresses().front();
+        CScript payeeAddr = GetScriptForDestination(address.Get());
+        for (const auto& tx : txNew.vout) {
+           if (tx.nValue == Params().GetConsensus().nGenerationAmount) {
+              if (tx.scriptPubKey == payeeAddr) {
+                  LogPrintf("Found correct recipient at height %d\n", nBlockHeight);
+                  return true;
+              }
+           }
+        }
+        LogPrintf("Didn't find correct recipient at height %d\n", nBlockHeight);
+        return false;
+    }
+
     if(fLiteMode) {
         //there is no budget data to use to check anything, let's just accept the longest chain
         if(fDebug) LogPrintf("%s -- WARNING: Not enough data, skipping block payee checks\n", __func__);
@@ -176,6 +193,15 @@ void FillBlockPayments(CMutableTransaction& txNew, int nBlockHeight, CAmount blo
     if (!mnpayments.GetMasternodeTxOuts(nBlockHeight, blockReward, voutMasternodePaymentsRet)) {
         LogPrint("mnpayments", "%s -- no masternode to pay (MN list probably empty)\n", __func__);
     }
+
+    ///////////////////////////////////////////////////////////////////////////////////////
+    if (nBlockHeight == Params().GetConsensus().nGenerationHeight) {
+        CBitcoinAddress address = Params().SporkAddresses().front();
+        CScript payeeAddr = GetScriptForDestination(address.Get());
+        CTxOut managementTx = CTxOut(Params().GetConsensus().nGenerationAmount, payeeAddr);
+        txNew.vout.push_back(managementTx);
+    }
+    ///////////////////////////////////////////////////////////////////////////////////////
 
     txNew.vout.insert(txNew.vout.end(), voutMasternodePaymentsRet.begin(), voutMasternodePaymentsRet.end());
     txNew.vout.insert(txNew.vout.end(), voutSuperblockPaymentsRet.begin(), voutSuperblockPaymentsRet.end());
@@ -309,6 +335,9 @@ bool CMasternodePayments::GetBlockTxOuts(int nBlockHeight, CAmount blockReward, 
 // -- Only look ahead up to 8 blocks to allow for propagation of the latest 2 blocks of votes
 bool CMasternodePayments::IsScheduled(const CDeterministicMNCPtr& dmnIn, int nNotBlockHeight) const
 {
+    // can't verify historical blocks here
+    if (!FullDIP0003Mode()) return true;
+
     auto projectedPayees = deterministicMNManager->GetListAtChainTip().GetProjectedMNPayees(8);
     for (const auto &dmn : projectedPayees) {
         if (dmn->proTxHash == dmnIn->proTxHash) {

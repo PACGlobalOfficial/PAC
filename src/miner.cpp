@@ -258,7 +258,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
     if (fStakeFound) {
-        //pblock->vtx.emplace_back(MakeTransactionRef(coinstakeTx));
+        pblock->vtx.resize(pblock->vtx.size() + 1);
         pblock->vtx[1] = MakeTransactionRef(std::move(coinstakeTx));
     }
     pblocktemplate->vTxFees[0] = -nFees;

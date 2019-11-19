@@ -597,6 +597,9 @@ bool IgnoreSigopsLimits(int nHeight);
 //! Returns true if we have entered PoS consensus state
 bool IsPoS();
 
+//! Returns whether full DIP3 enforcement is active
+bool FullDIP0003Mode();
+
 //! Return the current minimum relay tx fee
 CFeeRate CurrentRelayFee();
 

@@ -57,6 +57,8 @@ void CDKGSessionManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fIni
     if (fInitialDownload)
         return;
 
+    if (!FullDIP0003Mode()) return;
+
     if (!sporkManager.IsSporkActive(SPORK_17_QUORUM_DKG_ENABLED))
         return;
 
