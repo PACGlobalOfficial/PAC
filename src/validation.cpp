@@ -2328,10 +2328,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     bool isProofOfStake = !block.IsProofOfWork();
     const auto& coinbaseTransaction = block.vtx[isProofOfStake];
-    if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward)) {
-        mapRejectedBlocks.insert(std::make_pair(block.GetHash(), GetTime()));
-        return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"),
-                                REJECT_INVALID, "bad-cb-payee");
+    if (FullDIP0003Mode()) {
+       if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward)) {
+           mapRejectedBlocks.insert(std::make_pair(block.GetHash(), GetTime()));
+           return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
+       }
     }
 
     int64_t nTime5_4 = GetTimeMicros(); nTimePayeeValid += nTime5_4 - nTime5_3;
@@ -4821,9 +4822,10 @@ double GuessVerificationProgress(const ChainTxData& data, CBlockIndex *pindex) {
 
 //! Returns the current minimum protocol version in use
 int CurrentProtocol() {
-   return (Params().NetworkIDString() ==
-           CBaseChainParams::TESTNET ? MIN_PEER_PROTO_VERSION_TESTNET :
-                                       MIN_PEER_PROTO_VERSION_MAINNET);
+   if (Params().NetworkIDString() == CBaseChainParams::TESTNET)
+       return FullDIP0003Mode() ? MIN_PEER_PROTO_PHASE2_TESTNET : MIN_PEER_PROTO_PHASE1_TESTNET;
+   else
+       return FullDIP0003Mode() ? MIN_PEER_PROTO_PHASE2_MAINNET : MIN_PEER_PROTO_PHASE1_MAINNET;
 }
 
 //! Returns true if we can ignore sigops limits temporarily
@@ -4851,7 +4853,7 @@ int ConfirmationsPerNetwork() {
 
 //! Returns whether full DIP3 enforcement is active
 bool FullDIP0003Mode() {
-    return (chainActive.Height() > Params().GetConsensus().DIP0003EnforcementHeight);
+    return (chainActive.Height() >= Params().GetConsensus().DIP0003EnforcementHeight);
 }
 
 class CMainCleanup

@@ -280,15 +280,15 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].bit = 3;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 10;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nWindowSize = 2000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 1000;
 
         // Deployment of DIP0008
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].bit = 4;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 10;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 3000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 1500;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000000000512d5");  // 332500
@@ -365,28 +365,25 @@ public:
 
         checkpointData = (CCheckpointData) {
             boost::assign::map_list_of
-            (  100,     uint256S("0x000005065df82218140bc7c59cfd6913eaa5a88f3255ccc977c546cb0beb9ff0"))
-            (  7200,    uint256S("0x00000000000b7d73439cae777bae147b8daaee692a9e5e06fd8466749de39465"))
-            (  43850,   uint256S("0x0000000000000be675f137fbf5cbe5e9d8cb0ea509d30252a02c30944f16970f"))
-            (  50000,   uint256S("0x00000000000007cdd43a784898eb9cb5be63ca7db5e5935a05a1baa01a658ca0"))
-            (  50620,   uint256S("0x0000000000000349685ff23a2344db4d51ae9f169cda23c8a472fb783914b071"))
-            (  151380,  uint256S("0x00000000000027377aa412aad9342c61c20973ac1636663b2ef06b3f7549876d"))
-            (  216000,  uint256S("0x00000000000038a52e7bafb7fb091ed2989ec8bdd7a550db9925300687805d87"))
-            (  230000,  uint256S("0x0000000000000e3cbc8c4e418677a796ff92212d4d5f3ee81fa370a1fe04074b"))
-            (  250000,  uint256S("0x00000000000016fe843a827dc319b45d10c59ff45f8fcc1ee407ee964d3a6f7d"))
-            (  260000,  uint256S("0x0000000000001377c02f7276615f1467936c7778785e30027b46e59c3e9e46e6"))
-            (  270000,  uint256S("0x0000000000001ea31b8d2bf73d0471b57a41fe0b60e500e559af6f88a2bad9c2"))
-            (  280000,  uint256S("0x0000000000003b2680a18e08c41719206c76b05e2eb32f8aa45730246d63b2b7"))
-            (  290000,  uint256S("0x00000000000069c1ef2e4f3122e6021177b581fd944c174390f1d3cdcdcc6722"))
             (  300000,  uint256S("0x0000000000001f4f2650510e1ad032f356d2fcb001aafcd5e13a87a259f8e15e"))
             (  330000,  uint256S("0x816ef933e4ab900d99eecde8d6abb1d2f2b71c001d05f79f5d4b98a67facd143"))
             (  331000,  uint256S("0xec03918f66618c53742a0638d976b2b56807d3e3ca7a7de2d72e920f02fe521e"))
             (  332000,  uint256S("0xbee2c8b8c12ad020783e241e086440f92054c7ea557c7639c32bc7fa6430a0cd"))
+            (  333000,  uint256S("0xa214b0d4da47f41900e6a1c0f3821cdec90b8a58b404f4eea0e9442520676594"))
+            (  334000,  uint256S("0x1a8f4b80b5eb1200038ea80fac956546eb2d358c7c707af4de7eaff9ed48a4b5"))
+            (  335000,  uint256S("0x2e2c7740b1349cad05b87e8e99085fbb942cfc9d5659f0a69f5b15480245acaa"))
+            (  338000,  uint256S("0xfbbab860d2d5c18e5241b3c184c0ae6d38ddb8c3619ec86a6d67fb0b3f6e077f"))
+            (  340000,  uint256S("0x006d214eae0d741af1302096f9ebdccd7bcddbd97da7e574bda7d6423e995c93"))
+            (  344000,  uint256S("0xae6d411fca8ebda49838c6fead60d586b93742642ccdae6094f2d4c7a463f9d1"))
+            (  348000,  uint256S("0xef51329d54c7219a5462acce5f794c82887ca2326cd52748173c89b7bf10d031"))
+            (  352000,  uint256S("0xa4342f0a9ec9e46105bc8fd73aa46a4b931b2ec536bab36cc8103d1f9ed0dad8"))
+            (  356000,  uint256S("0xbfd90a7cec6af4754fc7543bbcdfa2b9175b62235f9e93ab19d2b27935546d9e"))
+            (  358000,  uint256S("0xd404c8f00eef86c2f6af2bb2d7eb0bee1b21bd479a328eeb2432f6e1e2ddfabb"))
         };
 
         chainTxData = ChainTxData{
-            1570098593, // * UNIX timestamp of last known number of transactions
-            980978,     // * total number of transactions between genesis and that timestamp
+            1574166488, // * UNIX timestamp of last known number of transactions
+            1060113,    // * total number of transactions between genesis and that timestamp
                         //   (the tx=... number in the SetBestChain debug.log lines)
             0.1         // * estimated number of transactions per second after that timestamp
         };
@@ -476,15 +473,15 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].bit = 3;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 10;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nWindowSize = 1000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0003].nThreshold = 250;
 
         // Deployment of DIP0008
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].bit = 4;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 100;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 10;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 1000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 250;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
