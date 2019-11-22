@@ -171,26 +171,27 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     // Create coinbase transaction.
     CMutableTransaction coinbaseTx;
-    CMutableTransaction coinstakeTx;
     coinbaseTx.vin.resize(1);
     coinbaseTx.vin[0].prevout.SetNull();
     coinbaseTx.vout.resize(1);
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
     CAmount blockReward = GetBlockSubsidy(pindexPrev->nHeight, Params().GetConsensus());
     std::vector<const CWalletTx*> vwtxPrev;
-    bool fStakeFound = false;
 
     if(fProofOfStake) {
         assert(pwalletMain);
         boost::this_thread::interruption_point();
         pblock->nBits = GetNextWorkRequired(pindexPrev, chainparams.GetConsensus());
+        CMutableTransaction coinstakeTx;
         int64_t nSearchTime = pblock->nTime; // search to current time
+        bool fStakeFound = false;
         if (nSearchTime >= nLastCoinStakeSearchTime) {
             unsigned int nTxNewTime = 0;
             if (pwalletMain->CreateCoinStake(*pwalletMain, pblock->nBits, blockReward, coinstakeTx, nTxNewTime, vwtxPrev)) {
                 pblock->nTime = nTxNewTime;
                 coinbaseTx.vout[0].SetEmpty();
                 FillBlockPayments(coinstakeTx, nHeight, blockReward, pblocktemplate->voutMasternodePayments, pblocktemplate->voutSuperblockPayments);
+                pblock->vtx.emplace_back(MakeTransactionRef(coinstakeTx));
                 fStakeFound = true;
             }
             nLastCoinStakeSearchInterval = nSearchTime - nLastCoinStakeSearchTime;
@@ -253,14 +254,11 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 throw std::runtime_error(strprintf("%s: CalcCbTxMerkleRootQuorums failed: %s", __func__, FormatStateMessage(state)));
             }
         }
+
         SetTxPayload(coinbaseTx, cbTx);
     }
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
-    if (fStakeFound) {
-        pblock->vtx.resize(pblock->vtx.size() + 1);
-        pblock->vtx[1] = MakeTransactionRef(std::move(coinstakeTx));
-    }
     pblocktemplate->vTxFees[0] = -nFees;
 
     // Fill in header
