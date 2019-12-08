@@ -72,7 +72,6 @@ if test -e "$file_name$extension"; then
 echo "Unpacking PACGlobal distribution"
 	tar -xzvf $file_name$extension
 	rm -r $file_name$extension
-	rm -r PACGlobal
 	mv -v $file_name PACGlobal
 	cd PACGlobal
 	chmod +x pacglobald
