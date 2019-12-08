@@ -4,8 +4,8 @@ set -e
 
 export LC_ALL="en_US.UTF-8"
 
-binary_url="https://github.com/PACGlobalOfficial/PAC/releases/download/8f4ed61d4/pacglobal-v0.14.0.4-8f4ed61d4-lin64.tgz"
-file_name="pacglobal-v0.14.0.4-8f4ed61d4-lin64"
+binary_url="https://github.com/PACGlobalOfficial/PAC/releases/download/b5cdfa551/pacglobal-v0.14.0.4-b5cdfa551-lin64.tgz"
+file_name="pacglobal-v0.14.0.4-b5cdfa551-lin64"
 extension=".tgz"
 
 echo ""
@@ -34,7 +34,8 @@ echo ""
 echo "Running this script on Ubuntu 18.04 LTS or newer is highly recommended."
 
 sudo apt-get -y update
-sudo apt-get -y install git python virtualenv ufw pwgen
+sudo apt-get -y upgrade
+sudo apt-get -y install ufw pwgen
 
 echo ""
 echo "###############################"
@@ -71,6 +72,7 @@ if test -e "$file_name$extension"; then
 echo "Unpacking PACGlobal distribution"
 	tar -xzvf $file_name$extension
 	rm -r $file_name$extension
+	rm -r PACGlobal
 	mv -v $file_name PACGlobal
 	cd PACGlobal
 	chmod +x pacglobald
@@ -144,7 +146,7 @@ ExecStop=-/root/PACGlobal/pacglobal-cli -conf=/root/.PACGlobal/pacglobal.conf \
 Restart=always
 PrivateTmp=true
 TimeoutStopSec=60s
-TimeoutStartSec=2s
+TimeoutStartSec=10s
 StartLimitInterval=120s
 StartLimitBurst=5
 [Install]
@@ -178,4 +180,4 @@ cd ~/PACGlobal
 ./pacglobal-cli getinfo
 
 echo ""
-echo "Your masternode server is ready!"
+echo "Your masternode wallet on the server has been setup and will be ready when the syncing is done!"
