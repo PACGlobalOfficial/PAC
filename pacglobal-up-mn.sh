@@ -4,8 +4,8 @@ set -e
 
 export LC_ALL="en_US.UTF-8"
 
-binary_url="https://github.com/PACGlobalOfficial/PAC/releases/download/v0.14.0.6/pacglobal-v0.14.0.6-lin64.tgz"
-file_name="pacglobal-v0.14.0.6-lin64"
+binary_url="https://github.com/PACGlobalOfficial/PAC/releases/download/d6fbc8bb24/pacglobal-v0.14.0.6-d6fbc8bb24-lin64.tgz"
+file_name="pacglobal-v0.14.0.6-d6fbc8bb24-lin64"
 extension=".tgz"
 
 echo ""
