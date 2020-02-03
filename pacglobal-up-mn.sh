@@ -48,6 +48,7 @@ echo "#      Get/Setup binaries     #"
 echo "###############################"
 echo ""
 sleep 3
+cd ~
 wget $binary_url
 if test -e "$file_name$extension"; then
 echo ""
