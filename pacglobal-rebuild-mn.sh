@@ -44,6 +44,7 @@ echo "#    Cleaning up current chain    #"
 echo "###################################"
 echo ""
 sleep 3
+cd ~
 rm -f .PACGlobal/banlist.dat
 rm -f .PACGlobal/fee_estimates.dat
 rm -f .PACGlobal/governance.dat
