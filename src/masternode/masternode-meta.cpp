@@ -2,11 +2,29 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "masternode-meta.h"
+#include <masternode/masternode-meta.h>
+
+#include <timedata.h>
 
 CMasternodeMetaMan mmetaman;
 
-const std::string CMasternodeMetaMan::SERIALIZATION_VERSION_STRING = "CMasternodeMetaMan-Version-1";
+const std::string CMasternodeMetaMan::SERIALIZATION_VERSION_STRING = "CMasternodeMetaMan-Version-2";
+
+UniValue CMasternodeMetaInfo::ToJson() const
+{
+    UniValue ret(UniValue::VOBJ);
+
+    auto now = GetAdjustedTime();
+
+    ret.push_back(Pair("lastDSQ", nLastDsq));
+    ret.push_back(Pair("mixingTxCount", nMixingTxCount));
+    ret.push_back(Pair("lastOutboundAttempt", lastOutboundAttempt));
+    ret.push_back(Pair("lastOutboundAttemptElapsed", now - lastOutboundAttempt));
+    ret.push_back(Pair("lastOutboundSuccess", lastOutboundSuccess));
+    ret.push_back(Pair("lastOutboundSuccessElapsed", now - lastOutboundSuccess));
+
+    return ret;
+}
 
 void CMasternodeMetaInfo::AddGovernanceVote(const uint256& nGovernanceObjectHash)
 {

@@ -5,18 +5,19 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "chainparams.h"
-#include "consensus/merkle.h"
-#include "random.h"
-#include "tinyformat.h"
-#include "util.h"
-#include "utilstrencodings.h"
+#include <chainparams.h>
+#include <consensus/merkle.h>
 
-#include "arith_uint256.h"
+#include <tinyformat.h>
+#include <util.h>
+#include <utilstrencodings.h>
+
+#include <arith_uint256.h>
 
 #include <assert.h>
+#include <memory>
 
-#include "chainparamsseeds.h"
+#include <chainparamsseeds.h>
 
 const int32_t NEVER32 = 400000U;
 const int64_t NEVER64 = 4070908800ULL;
@@ -125,7 +126,24 @@ void CChainParams::UpdateLLMQChainLocks(Consensus::LLMQType llmqType) {
     consensus.llmqTypeChainLocks = llmqType;
 }
 
-static CBlock FindDevNetGenesisBlock(const Consensus::Params& params, const CBlock &prevBlock, const CAmount& reward)
+void CChainParams::UpdateLLMQTestParams(int size, int threshold) {
+    auto& params = consensus.llmqs.at(Consensus::LLMQ_TEST);
+    params.size = size;
+    params.minSize = threshold;
+    params.threshold = threshold;
+    params.dkgBadVotesThreshold = threshold;
+}
+
+void CChainParams::UpdateLLMQDevnetParams(int size, int threshold)
+{
+    auto& params = consensus.llmqs.at(Consensus::LLMQ_DEVNET);
+    params.size = size;
+    params.minSize = threshold;
+    params.threshold = threshold;
+    params.dkgBadVotesThreshold = threshold;
+}
+
+static CBlock FindDevNetGenesisBlock(const CBlock &prevBlock, const CAmount& reward)
 {
     std::string devNetName = GetDevNetName();
     assert(!devNetName.empty());
@@ -150,22 +168,43 @@ static CBlock FindDevNetGenesisBlock(const Consensus::Params& params, const CBlo
 }
 
 // this one is for testing only
-static Consensus::LLMQParams llmq5_60 = {
-        .type = Consensus::LLMQ_5_60,
-        .name = "llmq_5_60",
+static Consensus::LLMQParams llmq_test = {
+        .type = Consensus::LLMQ_TEST,
+        .name = "llmq_test",
         .size = 3,
-        .minSize = 3,
-        .threshold = 3,
+        .minSize = 2,
+        .threshold = 2,
 
         .dkgInterval = 24, // one DKG per hour
         .dkgPhaseBlocks = 2,
         .dkgMiningWindowStart = 10, // dkgPhaseBlocks * 5 = after finalization
         .dkgMiningWindowEnd = 18,
-        .dkgBadVotesThreshold = 8,
+        .dkgBadVotesThreshold = 2,
 
         .signingActiveQuorumCount = 2, // just a few ones to allow easier testing
 
         .keepOldConnections = 3,
+        .recoveryMembers = 3,
+};
+
+// this one is for devnets only
+static Consensus::LLMQParams llmq_devnet = {
+        .type = Consensus::LLMQ_DEVNET,
+        .name = "llmq_devnet",
+        .size = 10,
+        .minSize = 7,
+        .threshold = 6,
+
+        .dkgInterval = 24, // one DKG per hour
+        .dkgPhaseBlocks = 2,
+        .dkgMiningWindowStart = 10, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 18,
+        .dkgBadVotesThreshold = 7,
+
+        .signingActiveQuorumCount = 3, // just a few ones to allow easier testing
+
+        .keepOldConnections = 4,
+        .recoveryMembers = 6,
 };
 
 static Consensus::LLMQParams llmq50_60 = {
@@ -184,6 +223,7 @@ static Consensus::LLMQParams llmq50_60 = {
         .signingActiveQuorumCount = 24, // a full day worth of LLMQs
 
         .keepOldConnections = 25,
+        .recoveryMembers = 25,
 };
 
 static Consensus::LLMQParams llmq400_60 = {
@@ -202,6 +242,7 @@ static Consensus::LLMQParams llmq400_60 = {
         .signingActiveQuorumCount = 4, // two days worth of LLMQs
 
         .keepOldConnections = 5,
+        .recoveryMembers = 100,
 };
 
 // Used for deployment and min-proto-version signalling, so it needs a higher threshold
@@ -221,6 +262,7 @@ static Consensus::LLMQParams llmq400_85 = {
         .signingActiveQuorumCount = 4, // four days worth of LLMQs
 
         .keepOldConnections = 5,
+        .recoveryMembers = 100,
 };
 
 
@@ -383,9 +425,10 @@ public:
         fMineBlocksOnDemand = false;
         fAllowMultipleAddressesFromGroup = false;
         fAllowMultiplePorts = false;
+        nLLMQConnectionRetryTimeout = 60;
 
         nPoolMinParticipants = 3;
-        nPoolMaxParticipants = 5;
+        nPoolMaxParticipants = 5; // TODO: bump on next HF / mandatory upgrade
         nFulfilledRequestExpireTime = 60*60; // fulfilled requests expire in 1 hour
 
         vSporkAddresses = {"PGtvidAAsW6a9tMBKmdh2tZ1B3SxFDpdXP"};
@@ -395,19 +438,9 @@ public:
         checkpointData = (CCheckpointData) {
         {
             {  300000,  uint256S("0x0000000000001f4f2650510e1ad032f356d2fcb001aafcd5e13a87a259f8e15e")},
-            {  330000,  uint256S("0x816ef933e4ab900d99eecde8d6abb1d2f2b71c001d05f79f5d4b98a67facd143")},
-            {  331000,  uint256S("0xec03918f66618c53742a0638d976b2b56807d3e3ca7a7de2d72e920f02fe521e")},
-            {  332000,  uint256S("0xbee2c8b8c12ad020783e241e086440f92054c7ea557c7639c32bc7fa6430a0cd")},
-            {  333000,  uint256S("0xa214b0d4da47f41900e6a1c0f3821cdec90b8a58b404f4eea0e9442520676594")},
-            {  334000,  uint256S("0x1a8f4b80b5eb1200038ea80fac956546eb2d358c7c707af4de7eaff9ed48a4b5")},
-            {  335000,  uint256S("0x2e2c7740b1349cad05b87e8e99085fbb942cfc9d5659f0a69f5b15480245acaa")},
-            {  338000,  uint256S("0xfbbab860d2d5c18e5241b3c184c0ae6d38ddb8c3619ec86a6d67fb0b3f6e077f")},
-            {  340000,  uint256S("0x006d214eae0d741af1302096f9ebdccd7bcddbd97da7e574bda7d6423e995c93")},
-            {  344000,  uint256S("0xae6d411fca8ebda49838c6fead60d586b93742642ccdae6094f2d4c7a463f9d1")},
-            {  348000,  uint256S("0xef51329d54c7219a5462acce5f794c82887ca2326cd52748173c89b7bf10d031")},
-            {  352000,  uint256S("0xa4342f0a9ec9e46105bc8fd73aa46a4b931b2ec536bab36cc8103d1f9ed0dad8")},
-            {  356000,  uint256S("0xbfd90a7cec6af4754fc7543bbcdfa2b9175b62235f9e93ab19d2b27935546d9e")},
-            {  358000,  uint256S("0xd404c8f00eef86c2f6af2bb2d7eb0bee1b21bd479a328eeb2432f6e1e2ddfabb")},
+            {  350000,  uint256S("0x653588a2108e7632a6b01265b4d9d83ab3ce0dfb1098815db9979bee04e96d1c")},
+            {  400000,  uint256S("0x8a821a5d39be2e9a660fd7a9186776e4512be608679d7f30696574e7535f1b3e")},
+            {  425000,  uint256S("0x0a163690308bbd44e4a3e569e55a43eff4cf9baabdb49e440abe65ccb496c15b")},
         }};
 
         chainTxData = ChainTxData{
@@ -555,8 +588,9 @@ public:
         fMineBlocksOnDemand = false;
         fAllowMultipleAddressesFromGroup = true;
         fAllowMultiplePorts = true;
+        nLLMQConnectionRetryTimeout = 60;
 
-        nPoolMinParticipants = 3;
+        nPoolMinParticipants = 3; // TODO drop to 2 with next mandatory upgrade
         nPoolMaxParticipants = 5;
         nFulfilledRequestExpireTime = 5*60; // fulfilled requests expire in 5 minutes
 
@@ -656,7 +690,7 @@ public:
         // Deployment of DIP0008
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].bit = 4;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nStartTime = 1553126400; // Mar 21st, 2019
-        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = 1584748800; // Mar 21st, 2020
+        consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nTimeout = 1900281600; // Mar 21st, 2030
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nWindowSize = 100;
         consensus.vDeployments[Consensus::DEPLOYMENT_DIP0008].nThreshold = 50; // 50% of 100
 
@@ -678,7 +712,7 @@ public:
         assert(consensus.hashGenesisBlock == uint256S("0x000008ca1832a4baf228eb1553c03d3a2c8e02399550dd6ea8d65cec3ef23d2e"));
         assert(genesis.hashMerkleRoot == uint256S("0xe0028eb9648db56b1ac77cf090b99048a8007e2bb64b68f092c03c7f56a662c7"));
 
-        devnetGenesis = FindDevNetGenesisBlock(consensus, genesis, 50 * COIN);
+        devnetGenesis = FindDevNetGenesisBlock(genesis, 50 * COIN);
         consensus.hashDevnetGenesisBlock = devnetGenesis.GetHash();
 
         vFixedSeeds.clear();
@@ -700,6 +734,7 @@ public:
         nExtCoinType = 1;
 
         // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_DEVNET] = llmq_devnet;
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
         consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
         consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
@@ -708,11 +743,13 @@ public:
 
         fDefaultConsistencyChecks = false;
         fRequireStandard = false;
+        fRequireRoutableExternalIP = true;
         fMineBlocksOnDemand = false;
         fAllowMultipleAddressesFromGroup = true;
         fAllowMultiplePorts = true;
+        nLLMQConnectionRetryTimeout = 60;
 
-        nPoolMinParticipants = 3;
+        nPoolMinParticipants = 3; // same, drop to 2 w/ breaking change
         nPoolMaxParticipants = 5;
         nFulfilledRequestExpireTime = 5*60; // fulfilled requests expire in 5 minutes
 
@@ -829,9 +866,10 @@ public:
         fMineBlocksOnDemand = true;
         fAllowMultipleAddressesFromGroup = true;
         fAllowMultiplePorts = true;
+        nLLMQConnectionRetryTimeout = 1; // must be lower then the LLMQ signing session timeout so that tests have control over failing behavior
 
         nFulfilledRequestExpireTime = 5*60; // fulfilled requests expire in 5 minutes
-        nPoolMinParticipants = 3;
+        nPoolMinParticipants = 2;
         nPoolMaxParticipants = 5;
 
         // privKey: cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK
@@ -840,7 +878,7 @@ public:
         // regtest usually has no masternodes in most tests, so don't check for upgraged MNs
         fBIP9CheckMasternodesUpgraded = false;
 
-        checkpointData = (CCheckpointData) {
+        checkpointData = {
             {
                 {0, uint256S("0x000008ca1832a4baf228eb1553c03d3a2c8e02399550dd6ea8d65cec3ef23d2e")},
             }
@@ -867,10 +905,10 @@ public:
         nExtCoinType = 1;
 
         // long living quorum params
-        consensus.llmqs[Consensus::LLMQ_5_60] = llmq5_60;
+        consensus.llmqs[Consensus::LLMQ_TEST] = llmq_test;
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
-        consensus.llmqTypeChainLocks = Consensus::LLMQ_5_60;
-        consensus.llmqForInstaPAC = Consensus::LLMQ_5_60;
+        consensus.llmqTypeChainLocks = Consensus::LLMQ_TEST;
+        consensus.llmqTypeInstantSend = Consensus::LLMQ_TEST;
     }
 };
 
@@ -923,4 +961,14 @@ void UpdateDevnetSubsidyAndDiffParams(int nMinimumDifficultyBlocks, int nHighSub
 void UpdateDevnetLLMQChainLocks(Consensus::LLMQType llmqType)
 {
     globalChainParams->UpdateLLMQChainLocks(llmqType);
+}
+
+void UpdateLLMQTestParams(int size, int threshold)
+{
+    globalChainParams->UpdateLLMQTestParams(size, threshold);
+}
+
+void UpdateLLMQDevnetParams(int size, int threshold)
+{
+    globalChainParams->UpdateLLMQDevnetParams(size, threshold);
 }

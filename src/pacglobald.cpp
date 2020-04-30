@@ -5,22 +5,25 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include "config/pacglobal-config.h"
+#include <config/pacglobal-config.h>
 #endif
 
-#include "chainparams.h"
-#include "clientversion.h"
-#include "compat.h"
-#include "fs.h"
-#include "rpc/server.h"
-#include "init.h"
-#include "noui.h"
-#include "scheduler.h"
-#include "util.h"
-#include "httpserver.h"
-#include "httprpc.h"
-#include "utilstrencodings.h"
-#include "stacktraces.h"
+#include <chainparams.h>
+#include <clientversion.h>
+#include <compat.h>
+#include <fs.h>
+#include <rpc/server.h>
+#include <init.h>
+#include <noui.h>
+#include <util.h>
+#include <httpserver.h>
+#include <httprpc.h>
+#include <utilstrencodings.h>
+#if ENABLE_WALLET
+#include <wallet/init.h>
+#endif
+#include <walletinitinterface.h>
+#include <stacktraces.h>
 
 #include <boost/thread.hpp>
 
@@ -42,20 +45,13 @@
  * Use the buttons <code>Namespaces</code>, <code>Classes</code> or <code>Files</code> at the top of the page to start navigating the code.
  */
 
-void WaitForShutdown(boost::thread_group* threadGroup)
+void WaitForShutdown()
 {
-    bool fShutdown = ShutdownRequested();
-    // Tell the main threads to shutdown.
-    while (!fShutdown)
+    while (!ShutdownRequested())
     {
         MilliSleep(200);
-        fShutdown = ShutdownRequested();
     }
-    if (threadGroup)
-    {
-        Interrupt(*threadGroup);
-        threadGroup->join_all();
-    }
+    Interrupt();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -64,10 +60,13 @@ void WaitForShutdown(boost::thread_group* threadGroup)
 //
 bool AppInit(int argc, char* argv[])
 {
-    boost::thread_group threadGroup;
-    CScheduler scheduler;
-
     bool fRet = false;
+
+#if ENABLE_WALLET
+    g_wallet_init_interface.reset(new WalletInit);
+#else
+    g_wallet_init_interface.reset(new DummyWalletInit);
+#endif
 
     //
     // Parameters
@@ -133,7 +132,7 @@ bool AppInit(int argc, char* argv[])
         for (int i = 1; i < argc; i++) {
             if (!IsSwitchChar(argv[i][0])) {
                 fprintf(stderr, "Error: Command line contains unexpected token '%s', see dashd -h for a list of options.\n", argv[i]);
-                exit(EXIT_FAILURE);
+                return false;
             }
         }
 
@@ -145,17 +144,17 @@ bool AppInit(int argc, char* argv[])
         if (!AppInitBasicSetup())
         {
             // InitError will have been called with detailed error, which ends up on console
-            exit(EXIT_FAILURE);
+            return false;
         }
         if (!AppInitParameterInteraction())
         {
             // InitError will have been called with detailed error, which ends up on console
-            exit(EXIT_FAILURE);
+            return false;
         }
         if (!AppInitSanityChecks())
         {
             // InitError will have been called with detailed error, which ends up on console
-            exit(EXIT_FAILURE);
+            return false;
         }
         if (gArgs.GetBoolArg("-daemon", false))
         {
@@ -176,19 +175,18 @@ bool AppInit(int argc, char* argv[])
         if (!AppInitLockDataDirectory())
         {
             // If locking the data directory failed, exit immediately
-            exit(EXIT_FAILURE);
+            return false;
         }
-        fRet = AppInitMain(threadGroup, scheduler);
+        fRet = AppInitMain();
     } catch (...) {
         PrintExceptionContinue(std::current_exception(), "AppInit()");
     }
 
     if (!fRet)
     {
-        Interrupt(threadGroup);
-        threadGroup.join_all();
+        Interrupt();
     } else {
-        WaitForShutdown(&threadGroup);
+        WaitForShutdown();
     }
     Shutdown();
 

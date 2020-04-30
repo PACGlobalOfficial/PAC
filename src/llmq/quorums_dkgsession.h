@@ -5,16 +5,16 @@
 #ifndef DASH_QUORUMS_DKGSESSION_H
 #define DASH_QUORUMS_DKGSESSION_H
 
-#include "consensus/params.h"
-#include "net.h"
-#include "batchedlogger.h"
+#include <consensus/params.h>
+#include <net.h>
+#include <batchedlogger.h>
 
-#include "bls/bls_ies.h"
-#include "bls/bls_worker.h"
+#include <bls/bls_ies.h>
+#include <bls/bls_worker.h>
 
-#include "evo/deterministicmns.h"
+#include <evo/deterministicmns.h>
 
-#include "llmq/quorums_utils.h"
+#include <llmq/quorums_utils.h>
 
 class UniValue;
 
@@ -30,7 +30,7 @@ class CDKGLogger : public CBatchedLogger
 {
 public:
     CDKGLogger(const CDKGSession& _quorumDkg, const std::string& _func);
-    CDKGLogger(Consensus::LLMQType _llmqType, const uint256& _quorumHash, int _height, bool _areWeMember, const std::string& _func);
+    CDKGLogger(const std::string& _llmqTypeName, const uint256& _quorumHash, int _height, bool _areWeMember, const std::string& _func);
 };
 
 class CDKGContribution
@@ -217,6 +217,7 @@ public:
     std::set<uint256> complaintsFromOthers;
 
     bool bad{false};
+    bool badConnection{false};
     bool weComplain{false};
     bool someoneComplain{false};
 };
@@ -310,6 +311,7 @@ public:
 
     // Phase 2: complaint
     void VerifyAndComplain(CDKGPendingMessages& pendingMessages);
+    void VerifyConnectionAndMinProtoVersions();
     void SendComplaint(CDKGPendingMessages& pendingMessages);
     bool PreVerifyMessage(const uint256& hash, const CDKGComplaint& qc, bool& retBan) const;
     void ReceiveMessage(const uint256& hash, const CDKGComplaint& qc, bool& retBan);

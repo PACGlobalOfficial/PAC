@@ -2,20 +2,20 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "masternode/activemasternode.h"
-#include "consensus/validation.h"
-#include "governance/governance-classes.h"
-#include "init.h"
-#include "masternode/masternode-payments.h"
-#include "masternode/masternode-sync.h"
-#include "messagesigner.h"
-#include "netfulfilledman.h"
-#include "netmessagemaker.h"
-#include "spork.h"
-#include "util.h"
-#include "validation.h"
+#include <masternode/activemasternode.h>
+#include <consensus/validation.h>
+#include <governance/governance-classes.h>
+#include <init.h>
+#include <masternode/masternode-payments.h>
+#include <masternode/masternode-sync.h>
+#include <messagesigner.h>
+#include <netfulfilledman.h>
+#include <netmessagemaker.h>
+#include <spork.h>
+#include <util.h>
+#include <validation.h>
 
-#include "evo/deterministicmns.h"
+#include <evo/deterministicmns.h>
 
 #include <string>
 
@@ -236,7 +236,7 @@ std::string GetRequiredPaymentsString(int nBlockHeight, const CDeterministicMNCP
         CTxDestination dest;
         if (!ExtractDestination(payee->pdmnState->scriptPayout, dest))
             assert(false);
-        strPayee = CBitcoinAddress(dest).ToString();
+        strPayee = EncodeDestination(dest);
     }
     if (CSuperblockManager::IsSuperblockTriggered(nBlockHeight)) {
         strPayee += ", " + CSuperblockManager::GetRequiredPaymentsString(nBlockHeight);
@@ -294,11 +294,10 @@ bool CMasternodePayments::GetMasternodeTxOuts(int nBlockHeight, CAmount blockRew
     }
 
     for (const auto& txout : voutMasternodePaymentsRet) {
-        CTxDestination address1;
-        ExtractDestination(txout.scriptPubKey, address1);
-        CBitcoinAddress address2(address1);
+        CTxDestination dest;
+        ExtractDestination(txout.scriptPubKey, dest);
 
-        LogPrintf("CMasternodePayments::%s -- Masternode payment %lld to %s\n", __func__, txout.nValue, address2.ToString());
+        LogPrintf("CMasternodePayments::%s -- Masternode payment %lld to %s\n", __func__, txout.nValue, EncodeDestination(dest));
     }
 
     return true;
@@ -375,8 +374,7 @@ bool CMasternodePayments::IsTransactionValid(const CTransaction& txNew, int nBlo
             CTxDestination dest;
             if (!ExtractDestination(txout.scriptPubKey, dest))
                 assert(false);
-            LogPrintf("found -> %s\n", txNew.ToString().c_str());
-            LogPrintf("CMasternodePayments::%s -- ERROR failed to find expected payee %s in block at height %s\n", __func__, CBitcoinAddress(dest).ToString(), nBlockHeight);
+            LogPrintf("CMasternodePayments::%s -- ERROR failed to find expected payee %s in block at height %s\n", __func__, EncodeDestination(dest), nBlockHeight);
             return false;
         }
     }

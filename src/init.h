@@ -6,10 +6,14 @@
 #ifndef BITCOIN_INIT_H
 #define BITCOIN_INIT_H
 
+#include <memory>
 #include <string>
 
 class CScheduler;
 class CWallet;
+
+class WalletInitInterface;
+extern std::unique_ptr<WalletInitInterface> g_wallet_init_interface;
 
 namespace boost
 {
@@ -20,7 +24,7 @@ void StartShutdown();
 void StartRestart();
 bool ShutdownRequested();
 /** Interrupt threads */
-void Interrupt(boost::thread_group& threadGroup);
+void Interrupt();
 void Shutdown();
 //!Initialize the logging infrastructure
 void InitLogging();
@@ -55,7 +59,7 @@ bool AppInitLockDataDirectory();
  * @note This should only be done after daemonization. Call Shutdown() if this function fails.
  * @pre Parameters should be parsed and config file should be read, AppInitLockDataDirectory should have been called.
  */
-bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler);
+bool AppInitMain();
 void PrepareShutdown();
 
 /** The help message mode determines what help message to show */

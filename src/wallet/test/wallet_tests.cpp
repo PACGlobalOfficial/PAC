@@ -2,24 +2,23 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "wallet/wallet.h"
+#include <wallet/wallet.h>
 
+#include <memory>
 #include <set>
 #include <stdint.h>
 #include <utility>
 #include <vector>
 
-#include "consensus/validation.h"
-#include "rpc/server.h"
-#include "test/test_dash.h"
-#include "validation.h"
-#include "wallet/coincontrol.h"
-#include "wallet/test/wallet_test_fixture.h"
+#include <consensus/validation.h>
+#include <rpc/server.h>
+#include <test/test_dash.h>
+#include <validation.h>
+#include <wallet/coincontrol.h>
+#include <wallet/test/wallet_test_fixture.h>
 
 #include <boost/test/unit_test.hpp>
 #include <univalue.h>
-
-extern CWallet* pwalletMain;
 
 extern UniValue importmulti(const JSONRPCRequest& request);
 extern UniValue dumpwallet(const JSONRPCRequest& request);
@@ -38,7 +37,7 @@ typedef std::set<CInputCoin> CoinSet;
 
 BOOST_FIXTURE_TEST_SUITE(wallet_tests, WalletTestingSetup)
 
-static const CWallet testWallet;
+static const CWallet testWallet("dummy", CWalletDBWrapper::CreateDummy());
 static std::vector<COutput> vCoins;
 
 static void add_coin(const CAmount& nValue, int nAge = 6*24, bool fIsFromMe = false, int nInput=0)
@@ -384,9 +383,11 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
     // Verify ScanForWalletTransactions picks up transactions in both the old
     // and new block files.
     {
-        CWallet wallet;
+        CWallet wallet("dummy", CWalletDBWrapper::CreateDummy());
         AddKey(wallet, coinbaseKey);
-        BOOST_CHECK_EQUAL(nullBlock, wallet.ScanForWalletTransactions(oldTip));
+        WalletRescanReserver reserver(&wallet);
+        reserver.reserve();
+        BOOST_CHECK_EQUAL(nullBlock, wallet.ScanForWalletTransactions(oldTip, nullptr, reserver));
         BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 1000 * COIN);
     }
 
@@ -397,9 +398,11 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
     // Verify ScanForWalletTransactions only picks transactions in the new block
     // file.
     {
-        CWallet wallet;
+        CWallet wallet("dummy", CWalletDBWrapper::CreateDummy());
         AddKey(wallet, coinbaseKey);
-        BOOST_CHECK_EQUAL(oldTip, wallet.ScanForWalletTransactions(oldTip));
+        WalletRescanReserver reserver(&wallet);
+        reserver.reserve();
+        BOOST_CHECK_EQUAL(oldTip, wallet.ScanForWalletTransactions(oldTip, nullptr, reserver));
         BOOST_CHECK_EQUAL(wallet.GetImmatureBalance(), 500 * COIN);
     }
 
@@ -407,8 +410,8 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
     // before the missing block, and success for a key whose creation time is
     // after.
     {
-        CWallet wallet;
-        vpwallets.insert(vpwallets.begin(), &wallet);
+        CWallet wallet("dummy", CWalletDBWrapper::CreateDummy());
+        AddWallet(&wallet);
         UniValue keys;
         keys.setArray();
         UniValue key;
@@ -439,7 +442,7 @@ BOOST_FIXTURE_TEST_CASE(rescan, TestChain100Setup)
                       "downloading and rescanning the relevant blocks (see -reindex and -rescan "
                       "options).\"}},{\"success\":true}]",
                               0, oldTip->GetBlockTimeMax(), TIMESTAMP_WINDOW));
-        vpwallets.erase(vpwallets.begin());
+        RemoveWallet(&wallet);
     }
 }
 
@@ -466,7 +469,7 @@ BOOST_FIXTURE_TEST_CASE(importwallet_rescan, TestChain100Setup)
 
     // Import key into wallet and call dumpwallet to create backup file.
     {
-        CWallet wallet;
+        CWallet wallet("dummy", CWalletDBWrapper::CreateDummy());
         LOCK(wallet.cs_wallet);
         wallet.mapKeyMetadata[coinbaseKey.GetPubKey().GetID()].nCreateTime = KEY_TIME;
         wallet.AddKeyPubKey(coinbaseKey, coinbaseKey.GetPubKey());
@@ -474,21 +477,22 @@ BOOST_FIXTURE_TEST_CASE(importwallet_rescan, TestChain100Setup)
         JSONRPCRequest request;
         request.params.setArray();
         request.params.push_back((pathTemp / "wallet.backup").string());
-        vpwallets.insert(vpwallets.begin(), &wallet);
+        AddWallet(&wallet);
         ::dumpwallet(request);
     }
 
     // Call importwallet RPC and verify all blocks with timestamps >= BLOCK_TIME
     // were scanned, and no prior blocks were scanned.
     {
-        CWallet wallet;
+        CWallet wallet("dummy", CWalletDBWrapper::CreateDummy());
 
         JSONRPCRequest request;
         request.params.setArray();
         request.params.push_back((pathTemp / "wallet.backup").string());
-        vpwallets[0] = &wallet;
+        AddWallet(&wallet);
         ::importwallet(request);
 
+        LOCK(wallet.cs_wallet);
         BOOST_CHECK_EQUAL(wallet.mapWallet.size(), 3);
         BOOST_CHECK_EQUAL(coinbaseTxns.size(), 103);
         for (size_t i = 0; i < coinbaseTxns.size(); ++i) {
@@ -496,10 +500,10 @@ BOOST_FIXTURE_TEST_CASE(importwallet_rescan, TestChain100Setup)
             bool expected = i >= 100;
             BOOST_CHECK_EQUAL(found, expected);
         }
+        RemoveWallet(&wallet);
     }
 
     SetMockTime(0);
-    vpwallets.erase(vpwallets.begin());
 }
 
 // Check that GetImmatureCredit() returns a newly calculated value instead of
@@ -510,7 +514,7 @@ BOOST_FIXTURE_TEST_CASE(importwallet_rescan, TestChain100Setup)
 // debit functions.
 BOOST_FIXTURE_TEST_CASE(coin_mark_dirty_immature_credit, TestChain100Setup)
 {
-    CWallet wallet;
+    CWallet wallet("dummy", CWalletDBWrapper::CreateDummy());
     CWalletTx wtx(&wallet, MakeTransactionRef(coinbaseTxns.back()));
     LOCK2(cs_main, wallet.cs_wallet);
     wtx.hashBlock = chainActive.Tip()->GetBlockHash();
@@ -534,6 +538,7 @@ static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64
     SetMockTime(mockTime);
     CBlockIndex* block = nullptr;
     if (blockTime > 0) {
+        LOCK(cs_main);
         auto inserted = mapBlockIndex.emplace(GetRandHash(), new CBlockIndex);
         assert(inserted.second);
         const uint256& hash = inserted.first->first;
@@ -547,6 +552,7 @@ static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64
         wtx.SetMerkleBranch(block, 0);
     }
     wallet.AddToWallet(wtx);
+    LOCK(wallet.cs_wallet);
     return wallet.mapWallet.at(wtx.GetHash()).nTimeSmart;
 }
 
@@ -554,27 +560,25 @@ static int64_t AddTx(CWallet& wallet, uint32_t lockTime, int64_t mockTime, int64
 // expanded to cover more corner cases of smart time logic.
 BOOST_AUTO_TEST_CASE(ComputeTimeSmart)
 {
-    CWallet wallet;
-
     // New transaction should use clock time if lower than block time.
-    BOOST_CHECK_EQUAL(AddTx(wallet, 1, 100, 120), 100);
+    BOOST_CHECK_EQUAL(AddTx(m_wallet, 1, 100, 120), 100);
 
     // Test that updating existing transaction does not change smart time.
-    BOOST_CHECK_EQUAL(AddTx(wallet, 1, 200, 220), 100);
+    BOOST_CHECK_EQUAL(AddTx(m_wallet, 1, 200, 220), 100);
 
     // New transaction should use clock time if there's no block time.
-    BOOST_CHECK_EQUAL(AddTx(wallet, 2, 300, 0), 300);
+    BOOST_CHECK_EQUAL(AddTx(m_wallet, 2, 300, 0), 300);
 
     // New transaction should use block time if lower than clock time.
-    BOOST_CHECK_EQUAL(AddTx(wallet, 3, 420, 400), 400);
+    BOOST_CHECK_EQUAL(AddTx(m_wallet, 3, 420, 400), 400);
 
     // New transaction should use latest entry time if higher than
     // min(block time, clock time).
-    BOOST_CHECK_EQUAL(AddTx(wallet, 4, 500, 390), 400);
+    BOOST_CHECK_EQUAL(AddTx(m_wallet, 4, 500, 390), 400);
 
     // If there are future entries, new transaction should use time of the
     // newest entry that is no more than 300 seconds ahead of the clock time.
-    BOOST_CHECK_EQUAL(AddTx(wallet, 5, 50, 600), 300);
+    BOOST_CHECK_EQUAL(AddTx(m_wallet, 5, 50, 600), 300);
 
     // Reset mock time for other tests.
     SetMockTime(0);
@@ -583,11 +587,12 @@ BOOST_AUTO_TEST_CASE(ComputeTimeSmart)
 BOOST_AUTO_TEST_CASE(LoadReceiveRequests)
 {
     CTxDestination dest = CKeyID();
-    pwalletMain->AddDestData(dest, "misc", "val_misc");
-    pwalletMain->AddDestData(dest, "rr0", "val_rr0");
-    pwalletMain->AddDestData(dest, "rr1", "val_rr1");
+    LOCK(m_wallet.cs_wallet);
+    m_wallet.AddDestData(dest, "misc", "val_misc");
+    m_wallet.AddDestData(dest, "rr0", "val_rr0");
+    m_wallet.AddDestData(dest, "rr1", "val_rr1");
 
-    auto values = pwalletMain->GetDestValues("rr");
+    auto values = m_wallet.GetDestValues("rr");
     BOOST_CHECK_EQUAL(values.size(), 2);
     BOOST_CHECK_EQUAL(values[0], "val_rr0");
     BOOST_CHECK_EQUAL(values[1], "val_rr1");
@@ -599,19 +604,18 @@ public:
     ListCoinsTestingSetup()
     {
         CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
-        ::bitdb.MakeMock();
-        wallet.reset(new CWallet(std::unique_ptr<CWalletDBWrapper>(new CWalletDBWrapper(&bitdb, "wallet_test.dat"))));
+        wallet = MakeUnique<CWallet>("mock", CWalletDBWrapper::CreateMock());
         bool firstRun;
         wallet->LoadWallet(firstRun);
         AddKey(*wallet, coinbaseKey);
-        wallet->ScanForWalletTransactions(chainActive.Genesis());
+        WalletRescanReserver reserver(wallet.get());
+        reserver.reserve();
+        wallet->ScanForWalletTransactions(chainActive.Genesis(), nullptr, reserver);
     }
 
     ~ListCoinsTestingSetup()
     {
         wallet.reset();
-        ::bitdb.Flush(true);
-        ::bitdb.Reset();
     }
 
     CWalletTx& AddTx(CRecipient recipient)
@@ -625,9 +629,16 @@ public:
         BOOST_CHECK(wallet->CreateTransaction({recipient}, wtx, reservekey, fee, changePos, error, dummy));
         CValidationState state;
         BOOST_CHECK(wallet->CommitTransaction(wtx, reservekey, nullptr, state));
+        CMutableTransaction blocktx;
+        {
+            LOCK(wallet->cs_wallet);
+            blocktx = CMutableTransaction(*wallet->mapWallet.at(wtx.tx->GetHash()).tx);
+        }
+        CreateAndProcessBlock({CMutableTransaction(blocktx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        LOCK(cs_main);
+        LOCK(wallet->cs_wallet);
         auto it = wallet->mapWallet.find(wtx.GetHash());
         BOOST_CHECK(it != wallet->mapWallet.end());
-        CreateAndProcessBlock({CMutableTransaction(*it->second.tx)}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
         it->second.SetMerkleBranch(chainActive.Tip(), 1);
         return it->second;
     }

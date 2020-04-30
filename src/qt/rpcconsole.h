@@ -5,11 +5,11 @@
 #ifndef BITCOIN_QT_RPCCONSOLE_H
 #define BITCOIN_QT_RPCCONSOLE_H
 
-#include "guiutil.h"
-#include "peertablemodel.h"
-#include "trafficgraphdata.h"
+#include <qt/guiutil.h>
+#include <qt/peertablemodel.h>
+#include <qt/trafficgraphdata.h>
 
-#include "net.h"
+#include <net.h>
 
 #include <QWidget>
 #include <QCompleter>
@@ -140,7 +140,6 @@ Q_SIGNALS:
     void handleRestart(QStringList args);
 
 private:
-    static QString FormatBytes(quint64 bytes);
     void startExecutor();
     void setTrafficGraphRange(TrafficGraphData::GraphRange range);
     /** Build parameter list for restart */

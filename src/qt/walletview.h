@@ -5,10 +5,9 @@
 #ifndef BITCOIN_QT_WALLETVIEW_H
 #define BITCOIN_QT_WALLETVIEW_H
 
-#include "amount.h"
-#include "masternodelist.h"
-#include "governancelist.h"
-
+#include <amount.h>
+#include <qt/masternodelist.h>
+#include <qt/governancelist.h>
 #include <QStackedWidget>
 
 class BitcoinGUI;

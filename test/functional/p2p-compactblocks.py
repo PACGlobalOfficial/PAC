@@ -12,7 +12,7 @@ from test_framework.blocktools import create_block, create_coinbase
 from test_framework.script import CScript, OP_TRUE
 
 # TestNode: A peer we use to send messages to bitcoind, and store responses.
-class TestNode(NodeConnCB):
+class TestNode(P2PInterface):
     def __init__(self):
         super().__init__()
         self.last_sendcmpct = []
@@ -22,21 +22,21 @@ class TestNode(NodeConnCB):
         # so we can eg wait until a particular block is announced.
         self.announced_blockhashes = set()
 
-    def on_sendcmpct(self, conn, message):
+    def on_sendcmpct(self, message):
         self.last_sendcmpct.append(message)
 
-    def on_cmpctblock(self, conn, message):
+    def on_cmpctblock(self, message):
         self.block_announced = True
         self.last_message["cmpctblock"].header_and_shortids.header.calc_sha256()
         self.announced_blockhashes.add(self.last_message["cmpctblock"].header_and_shortids.header.sha256)
 
-    def on_headers(self, conn, message):
+    def on_headers(self, message):
         self.block_announced = True
         for x in self.last_message["headers"].headers:
             x.calc_sha256()
             self.announced_blockhashes.add(x.sha256)
 
-    def on_inv(self, conn, message):
+    def on_inv(self, message):
         for x in self.last_message["inv"].inv:
             if x.type == 2:
                 self.block_announced = True
@@ -57,7 +57,7 @@ class TestNode(NodeConnCB):
         msg = msg_getheaders()
         msg.locator.vHave = locator
         msg.hashstop = hashstop
-        self.connection.send_message(msg)
+        self.send_message(msg)
 
     def send_header_for_blocks(self, new_blocks):
         headers_message = msg_headers()
@@ -83,7 +83,7 @@ class TestNode(NodeConnCB):
         This is used when we want to send a message into the node that we expect
         will get us disconnected, eg an invalid block."""
         self.send_message(message)
-        wait_until(lambda: not self.connected, timeout=timeout, lock=mininode_lock)
+        wait_until(lambda: self.state != "connected", timeout=timeout, lock=mininode_lock)
 
 class CompactBlocksTest(BitcoinTestFramework):
     def set_test_params(self):
@@ -258,7 +258,8 @@ class CompactBlocksTest(BitcoinTestFramework):
 
         # Store the raw block in our internal format.
         block = FromHex(CBlock(), node.getblock("%02x" % block_hash, False))
-        [tx.calc_sha256() for tx in block.vtx]
+        for tx in block.vtx:
+            tx.calc_sha256()
         block.rehash()
 
         # Wait until the block was announced (via compact blocks)
@@ -727,47 +728,47 @@ class CompactBlocksTest(BitcoinTestFramework):
 
         self.log.info("Testing SENDCMPCT p2p message... ")
         self.test_sendcmpct(self.nodes[0], self.test_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_sendcmpct(self.nodes[1], self.second_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing compactblock construction...")
         self.test_compactblock_construction(self.nodes[0], self.test_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_compactblock_construction(self.nodes[1], self.second_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing compactblock requests... ")
         self.test_compactblock_requests(self.nodes[0], self.test_node)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_compactblock_requests(self.nodes[1], self.second_node)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing getblocktxn requests...")
         self.test_getblocktxn_requests(self.nodes[0], self.test_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_getblocktxn_requests(self.nodes[1], self.second_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing getblocktxn handler...")
         self.test_getblocktxn_handler(self.nodes[0], self.test_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_getblocktxn_handler(self.nodes[1], self.second_node, 1)
         self.test_getblocktxn_handler(self.nodes[1], self.old_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing compactblock requests/announcements not at chain tip...")
         self.test_compactblocks_not_at_tip(self.nodes[0], self.test_node)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_compactblocks_not_at_tip(self.nodes[1], self.second_node)
         self.test_compactblocks_not_at_tip(self.nodes[1], self.old_node)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing handling of incorrect blocktxn responses...")
         self.test_incorrect_blocktxn_response(self.nodes[0], self.test_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
         self.test_incorrect_blocktxn_response(self.nodes[1], self.second_node, 1)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         # End-to-end block relay tests
         self.log.info("Testing end-to-end block relay...")
@@ -784,7 +785,7 @@ class CompactBlocksTest(BitcoinTestFramework):
 
         self.log.info("Testing reconstructing compact blocks from all peers...")
         self.test_compactblock_reconstruction_multiple_peers(self.nodes[1], self.second_node, self.old_node)
-        sync_blocks(self.nodes)
+        self.sync_blocks()
 
         self.log.info("Testing invalid index in cmpctblock message...")
         self.test_invalid_cmpctblock_message()

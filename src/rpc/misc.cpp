@@ -4,31 +4,30 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
-#include "chain.h"
-#include "clientversion.h"
-#include "core_io.h"
-#include "init.h"
-#include "feerates.h"
-#include "httpserver.h"
-#include "net.h"
-#include "netbase.h"
-#include "rpc/blockchain.h"
-#include "rpc/server.h"
-#include "timedata.h"
-#include "txmempool.h"
-#include "util.h"
-#include "utilstrencodings.h"
-#include "validation.h"
+#include <base58.h>
+#include <chain.h>
+#include <clientversion.h>
+#include <core_io.h>
+#include <init.h>
+#include <httpserver.h>
+#include <net.h>
+#include <netbase.h>
+#include <rpc/blockchain.h>
+#include <rpc/server.h>
+#include <timedata.h>
+#include <txmempool.h>
+#include <util.h>
+#include <utilstrencodings.h>
+#include <validation.h>
 #ifdef ENABLE_WALLET
-#include "wallet/rpcwallet.h"
-#include "wallet/wallet.h"
-#include "wallet/walletdb.h"
+#include <wallet/rpcwallet.h>
+#include <wallet/wallet.h>
+#include <wallet/walletdb.h>
 #endif
-#include "warnings.h"
+#include <warnings.h>
 
-#include "masternode/masternode-sync.h"
-#include "spork.h"
+#include <masternode/masternode-sync.h>
+#include <spork.h>
 
 #include <stdint.h>
 #ifdef HAVE_MALLOC_INFO
@@ -214,7 +213,7 @@ class DescribeAddressVisitor : public boost::static_visitor<UniValue>
 public:
     CWallet * const pwallet;
 
-    DescribeAddressVisitor(CWallet *_pwallet) : pwallet(_pwallet) {}
+    explicit DescribeAddressVisitor(CWallet *_pwallet) : pwallet(_pwallet) {}
 
     UniValue operator()(const CNoDestination &dest) const { return UniValue(UniValue::VOBJ); }
 
@@ -241,8 +240,9 @@ public:
             obj.push_back(Pair("script", GetTxnOutputType(whichType)));
             obj.push_back(Pair("hex", HexStr(subscript.begin(), subscript.end())));
             UniValue a(UniValue::VARR);
-            for (const CTxDestination& addr : addresses)
-                a.push_back(CBitcoinAddress(addr).ToString());
+            for (const CTxDestination& addr : addresses) {
+                a.push_back(EncodeDestination(addr));
+            }
             obj.push_back(Pair("addresses", a));
             if (whichType == TX_MULTISIG)
                 obj.push_back(Pair("sigsrequired", nRequired));
@@ -372,15 +372,14 @@ UniValue validateaddress(const JSONRPCRequest& request)
     LOCK(cs_main);
 #endif
 
-    CBitcoinAddress address(request.params[0].get_str());
-    bool isValid = address.IsValid();
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    bool isValid = IsValidDestination(dest);
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("isvalid", isValid));
     if (isValid)
     {
-        CTxDestination dest = address.Get();
-        std::string currentAddress = address.ToString();
+        std::string currentAddress = EncodeDestination(dest);
         ret.push_back(Pair("address", currentAddress));
 
         CScript scriptPubKey = GetScriptForDestination(dest);
@@ -395,20 +394,28 @@ UniValue validateaddress(const JSONRPCRequest& request)
         if (pwallet && pwallet->mapAddressBook.count(dest)) {
             ret.push_back(Pair("account", pwallet->mapAddressBook[dest].name));
         }
-        CKeyID keyID;
         if (pwallet) {
-            const auto& meta = pwallet->mapKeyMetadata;
-            auto it = address.GetKeyID(keyID) ? meta.find(keyID) : meta.end();
-            if (it == meta.end()) {
-                it = meta.find(CScriptID(scriptPubKey));
+            const CKeyMetadata* meta = nullptr;
+            const CKeyID *keyID = boost::get<CKeyID>(&dest);
+            if (const CKeyID* key_id = boost::get<CKeyID>(&dest)) {
+                auto it = pwallet->mapKeyMetadata.find(*key_id);
+                if (it != pwallet->mapKeyMetadata.end()) {
+                    meta = &it->second;
+                }
             }
-            if (it != meta.end()) {
-                ret.push_back(Pair("timestamp", it->second.nCreateTime));
+            if (!meta) {
+                auto it = pwallet->m_script_metadata.find(CScriptID(scriptPubKey));
+                if (it != pwallet->m_script_metadata.end()) {
+                    meta = &it->second;
+                }
+            }
+            if (meta) {
+                ret.push_back(Pair("timestamp", meta->nCreateTime));
             }
 
             CHDChain hdChainCurrent;
-            if (!keyID.IsNull() && pwallet->mapHdPubKeys.count(keyID) && pwallet->GetHDChain(hdChainCurrent)) {
-                ret.push_back(Pair("hdkeypath", pwallet->mapHdPubKeys[keyID].GetKeyPath()));
+            if (keyID && pwallet->mapHdPubKeys.count(*keyID) && pwallet->GetHDChain(hdChainCurrent)) {
+                ret.push_back(Pair("hdkeypath", pwallet->mapHdPubKeys[*keyID].GetKeyPath()));
                 ret.push_back(Pair("hdchainid", hdChainCurrent.GetID().GetHex()));
             }
         }
@@ -444,16 +451,15 @@ CScript _createmultisig_redeemScript(CWallet * const pwallet, const UniValue& pa
         const std::string& ks = keys[i].get_str();
 #ifdef ENABLE_WALLET
         // Case 1: PACGlobal address and we have full public key:
-        CBitcoinAddress address(ks);
-        if (pwallet && address.IsValid()) {
-            CKeyID keyID;
-            if (!address.GetKeyID(keyID))
-                throw std::runtime_error(
-                    strprintf("%s does not refer to a key",ks));
+        CTxDestination dest = DecodeDestination(ks);
+        if (pwallet && IsValidDestination(dest)) {
+            const CKeyID *keyID = boost::get<CKeyID>(&dest);
+            if (!keyID) {
+                throw std::runtime_error(strprintf("%s does not refer to a key", ks));
+            }
             CPubKey vchPubKey;
-            if (!pwallet->GetPubKey(keyID, vchPubKey)) {
-                throw std::runtime_error(
-                    strprintf("no full public key for address %s",ks));
+            if (!pwallet->GetPubKey(*keyID, vchPubKey)) {
+                throw std::runtime_error(strprintf("no full public key for address %s", ks));
             }
             if (!vchPubKey.IsFullyValid())
                 throw std::runtime_error(" Invalid public key: "+ks);
@@ -524,10 +530,9 @@ UniValue createmultisig(const JSONRPCRequest& request)
     // Construct using pay-to-script-hash:
     CScript inner = _createmultisig_redeemScript(pwallet, request.params);
     CScriptID innerID(inner);
-    CBitcoinAddress address(innerID);
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("address", address.ToString()));
+    result.push_back(Pair("address", EncodeDestination(innerID)));
     result.push_back(Pair("redeemScript", HexStr(inner.begin(), inner.end())));
 
     return result;
@@ -562,13 +567,15 @@ UniValue verifymessage(const JSONRPCRequest& request)
     std::string strSign     = request.params[1].get_str();
     std::string strMessage  = request.params[2].get_str();
 
-    CBitcoinAddress addr(strAddress);
-    if (!addr.IsValid())
+    CTxDestination destination = DecodeDestination(strAddress);
+    if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
+    }
 
-    CKeyID keyID;
-    if (!addr.GetKeyID(keyID))
+    const CKeyID *keyID = boost::get<CKeyID>(&destination);
+    if (!keyID) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
+    }
 
     bool fInvalid = false;
     std::vector<unsigned char> vchSig = DecodeBase64(strSign.c_str(), &fInvalid);
@@ -584,7 +591,7 @@ UniValue verifymessage(const JSONRPCRequest& request)
     if (!pubkey.RecoverCompact(ss.GetHash(), vchSig))
         return false;
 
-    return (pubkey.GetID() == keyID);
+    return (pubkey.GetID() == *keyID);
 }
 
 UniValue signmessagewithprivkey(const JSONRPCRequest& request)
@@ -626,7 +633,7 @@ UniValue signmessagewithprivkey(const JSONRPCRequest& request)
     if (!key.SignCompact(ss.GetHash(), vchSig))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Sign failed");
 
-    return EncodeBase64(&vchSig[0], vchSig.size());
+    return EncodeBase64(vchSig.data(), vchSig.size());
 }
 
 UniValue setmocktime(const JSONRPCRequest& request)
@@ -659,22 +666,35 @@ UniValue setmocktime(const JSONRPCRequest& request)
 bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &address)
 {
     if (type == 2) {
-        address = CBitcoinAddress(CScriptID(hash)).ToString();
+        address = EncodeDestination(CScriptID(hash));
     } else if (type == 1) {
-        address = CBitcoinAddress(CKeyID(hash)).ToString();
+        address = EncodeDestination(CKeyID(hash));
     } else {
         return false;
     }
     return true;
 }
 
+bool getIndexKey(const std::string& str, uint160& hashBytes, int& type)
+{
+    CTxDestination dest = DecodeDestination(str);
+    if (!IsValidDestination(dest)) {
+        type = 0;
+        return false;
+    }
+    const CKeyID *keyID = boost::get<CKeyID>(&dest);
+    const CScriptID *scriptID = boost::get<CScriptID>(&dest);
+    type = keyID ? 1 : 2;
+    hashBytes = keyID ? *keyID : *scriptID;
+    return true;
+}
+
 bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint160, int> > &addresses)
 {
     if (params[0].isStr()) {
-        CBitcoinAddress address(params[0].get_str());
         uint160 hashBytes;
         int type = 0;
-        if (!address.GetIndexKey(hashBytes, type)) {
+        if (!getIndexKey(params[0].get_str(), hashBytes, type)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
         }
         addresses.push_back(std::make_pair(hashBytes, type));
@@ -689,10 +709,9 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
 
         for (std::vector<UniValue>::iterator it = values.begin(); it != values.end(); ++it) {
 
-            CBitcoinAddress address(it->get_str());
             uint160 hashBytes;
             int type = 0;
-            if (!address.GetIndexKey(hashBytes, type)) {
+            if (!getIndexKey(it->get_str(), hashBytes, type)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
             }
             addresses.push_back(std::make_pair(hashBytes, type));
@@ -1230,7 +1249,7 @@ UniValue getmemoryinfo(const JSONRPCRequest& request)
             + HelpExampleRpc("getmemoryinfo", "")
         );
 
-    std::string mode = (request.params.size() < 1 || request.params[0].isNull()) ? "stats" : request.params[0].get_str();
+    std::string mode = request.params[0].isNull() ? "stats" : request.params[0].get_str();
     if (mode == "stats") {
         UniValue obj(UniValue::VOBJ);
         obj.push_back(Pair("locked", RPCLockedMemoryInfo()));
@@ -1255,6 +1274,9 @@ uint64_t getCategoryMask(UniValue cats) {
         if (!GetLogCategory(&flag, &cat)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "unknown logging category " + cat);
         }
+        if (flag == BCLog::NONE) {
+            return 0;
+        }
         mask |= flag;
     }
     return mask;
@@ -1264,20 +1286,34 @@ UniValue logging(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 2) {
         throw std::runtime_error(
-            "logging [include,...] <exclude>\n"
+            "logging ( <include> <exclude> )\n"
             "Gets and sets the logging configuration.\n"
-            "When called without an argument, returns the list of categories that are currently being debug logged.\n"
-            "When called with arguments, adds or removes categories from debug logging.\n"
-            "The valid logging categories are: " + ListLogCategories() + ".\n"
-            "libevent logging is configured on startup and cannot be modified by this RPC during runtime.\n"
-            "There are also a few meta-categories:\n"
-            " - \"all\", \"1\" and \"\" activate all categories at once;\n"
-            " - \"pacglobal\" activates all PACGlobal-specific categories at once.\n"
+            "When called without an argument, returns the list of categories with status that are currently being debug logged or not.\n"
+            "When called with arguments, adds or removes categories from debug logging and return the lists above.\n"
+            "The arguments are evaluated in order \"include\", \"exclude\".\n"
+            "If an item is both included and excluded, it will thus end up being excluded.\n"
+            "The valid logging categories are: " + ListLogCategories() + "\n"
+            "In addition, the following are available as category names with special meanings:\n"
+            "  - \"all\",  \"1\" : represent all logging categories.\n"
+            "  - \"dash\" activates all PACGlobal-specific categories at once.\n"
             "To deactivate all categories at once you can specify \"all\" in <exclude>.\n"
+            "  - \"none\", \"0\" : even if other logging categories are specified, ignore all of them.\n"
             "\nArguments:\n"
-            "1. \"include\" (array of strings) add debug logging for these categories.\n"
-            "2. \"exclude\" (array of strings) remove debug logging for these categories.\n"
-            "\nResult: <categories>  (string): a list of the logging categories that are active.\n"
+            "1. \"include\"        (array of strings, optional) A json array of categories to add debug logging\n"
+            "     [\n"
+            "       \"category\"   (string) the valid logging category\n"
+            "       ,...\n"
+            "     ]\n"
+            "2. \"exclude\"        (array of strings, optional) A json array of categories to remove debug logging\n"
+            "     [\n"
+            "       \"category\"   (string) the valid logging category\n"
+            "       ,...\n"
+            "     ]\n"
+            "\nResult:\n"
+            "{                   (json object where keys are the logging categories, and values indicates its status\n"
+            "  \"category\": 0|1,  (numeric) if being debug logged or not. 0:inactive, 1:active\n"
+            "  ...\n"
+            "}\n"
             "\nExamples:\n"
             + HelpExampleCli("logging", "\"[\\\"all\\\"]\" \"[\\\"http\\\"]\"")
             + HelpExampleRpc("logging", "[\"all\"], \"[libevent]\"")
@@ -1285,11 +1321,11 @@ UniValue logging(const JSONRPCRequest& request)
     }
 
     uint64_t originalLogCategories = logCategories;
-    if (request.params.size() > 0 && request.params[0].isArray()) {
+    if (request.params[0].isArray()) {
         logCategories |= getCategoryMask(request.params[0]);
     }
 
-    if (request.params.size() > 1 && request.params[1].isArray()) {
+    if (request.params[1].isArray()) {
         logCategories &= ~getCategoryMask(request.params[1]);
     }
 
@@ -1330,8 +1366,20 @@ UniValue echo(const JSONRPCRequest& request)
     return request.params;
 }
 
+static UniValue getinfo_deprecated(const JSONRPCRequest& request)
+{
+    throw JSONRPCError(RPC_METHOD_NOT_FOUND,
+        "getinfo\n"
+        "\nThis call was removed in version 0.16.0. Use the appropriate fields from:\n"
+        "- getblockchaininfo: blocks, difficulty, chain\n"
+        "- getnetworkinfo: version, protocolversion, timeoffset, connections, proxy, relayfee, warnings\n"
+        "- getwalletinfo: balance, keypoololdest, keypoolsize, paytxfee, unlocked_until, walletversion\n"
+        "\nbitcoin-cli has the option -getinfo to collect and format these in the old format."
+    );
+}
+
 static const CRPCCommand commands[] =
-{ //  category              name                      actor (function)         okSafeMode
+{ //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
     { "control",            "debug",                  &debug,                  true,  {} },
     { "control",            "getinfo",                &getinfo,                true,  {} }, /* uses wallet if enabled */
@@ -1344,21 +1392,21 @@ static const CRPCCommand commands[] =
     { "util",               "getstakingstatus",       &getstakingstatus,       true,  {} },
 
     /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      true,  {"addresses"}  },
-    { "addressindex",       "getaddressutxos",        &getaddressutxos,        false, {"addresses"} },
-    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       false, {"addresses"} },
-    { "addressindex",       "getaddresstxids",        &getaddresstxids,        false, {"addresses"} },
-    { "addressindex",       "getaddressbalance",      &getaddressbalance,      false, {"addresses"} },
+    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {"addresses"}  },
+    { "addressindex",       "getaddressutxos",        &getaddressutxos,        {"addresses"} },
+    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {"addresses"} },
+    { "addressindex",       "getaddresstxids",        &getaddresstxids,        {"addresses"} },
+    { "addressindex",       "getaddressbalance",      &getaddressbalance,      {"addresses"} },
 
     /* PACGlobal features */
-    { "dash",               "mnsync",                 &mnsync,                 true,  {} },
-    { "dash",               "spork",                  &spork,                  true,  {"value"} },
+    { "dash",               "mnsync",                 &mnsync,                 {} },
+    { "dash",               "spork",                  &spork,                  {"arg0","value"} },
 
     /* Not shown in help */
-    { "hidden",             "setmocktime",            &setmocktime,            true,  {"timestamp"}},
-    { "hidden",             "echo",                   &echo,                   true,  {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
-    { "hidden",             "echojson",               &echo,                   true,  {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
-    { "hidden",             "logging",                &logging,                true,  {"include", "exclude"}},
+    { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
+    { "hidden",             "echo",                   &echo,                   {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
+    { "hidden",             "echojson",               &echo,                   {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
+    { "hidden",             "getinfo",                &getinfo_deprecated,     {}},
 };
 
 void RegisterMiscRPCCommands(CRPCTable &t)

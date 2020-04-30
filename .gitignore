@@ -83,6 +83,7 @@ libconftest.dylib*
 Makefile
 pacglobal-qt
 PACGlobal-Qt.app
+background.tiff*
 !/depends/Makefile
 
 # Unit-tests

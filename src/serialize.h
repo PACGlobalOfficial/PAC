@@ -6,7 +6,7 @@
 #ifndef BITCOIN_SERIALIZE_H
 #define BITCOIN_SERIALIZE_H
 
-#include "compat/endian.h"
+#include <compat/endian.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -24,8 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "prevector.h"
-#include "span.h"
+#include <span.h>
+#include <prevector.h>
 
 static const unsigned int MAX_SIZE = 0x02000000;
 
@@ -1019,8 +1019,8 @@ template<typename Stream, typename Map>
 void SerializeMap(Stream& os, const Map& m)
 {
     WriteCompactSize(os, m.size());
-    for (auto mi = m.begin(); mi != m.end(); ++mi)
-        Serialize(os, (*mi));
+    for (const auto& entry : m)
+        Serialize(os, entry);
 }
 
 template<typename Stream, typename Map>

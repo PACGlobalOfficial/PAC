@@ -6,9 +6,9 @@
 #ifndef BITCOIN_NET_PROCESSING_H
 #define BITCOIN_NET_PROCESSING_H
 
-#include "net.h"
-#include "validationinterface.h"
-#include "consensus/params.h"
+#include <net.h>
+#include <validationinterface.h>
+#include <consensus/params.h>
 
 /** Default for -maxorphantxsize, maximum size in megabytes the orphan map can grow before entries are removed */
 static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS_SIZE = 10; // this allows around 100 TXs of max size (and many more of normal size)
@@ -37,15 +37,10 @@ static constexpr int64_t EXTRA_PEER_CHECK_INTERVAL = 45;
 /** Minimum time an outbound-peer-eviction candidate must be connected for, in order to evict, in seconds */
 static constexpr int64_t MINIMUM_CONNECT_TIME = 30;
 
-/** Default for -headerspamfilter, use header spam filter */
-static const bool DEFAULT_HEADER_SPAM_FILTER = true;
-/** Default for -headerspamfiltermaxsize, maximum size of the list of indexes in the header spam filter */
-static const unsigned int DEFAULT_HEADER_SPAM_FILTER_MAX_SIZE = 100;
-/** Default for -headerspamfiltermaxavg, maximum average size of an index occurrence in the header spam filter */
-static const unsigned int DEFAULT_HEADER_SPAM_FILTER_MAX_AVG = 10;
-/** Default for -headerspamfilterignoreport, ignore the port in the ip address when looking for header spam,
- multiple nodes on the same ip will be treated as the one when computing the filter*/
-static const unsigned int DEFAULT_HEADER_SPAM_FILTER_IGNORE_PORT = true;
+/** Default for BIP61 (sending reject messages) */
+static constexpr bool DEFAULT_ENABLE_BIP61 = true;
+/** Enable BIP61 (sending reject messages) */
+extern bool g_enable_bip61;
 
 class PeerLogicValidation : public CValidationInterface, public NetEventsInterface {
 private:
@@ -63,7 +58,7 @@ public:
     void InitializeNode(CNode* pnode) override;
     void FinalizeNode(NodeId nodeid, bool& fUpdateConnectionTime) override;
     /** Process protocol messages received from a given node */
-    bool ProcessMessages(CNode* pfrom, std::atomic<bool>& interrupt) override;
+    bool ProcessMessages(CNode* pfrom, std::atomic<bool>& interrupt, bool &fRetDidWork) override;
     /**
     * Send queued protocol messages to be sent to a give node.
     *
@@ -93,5 +88,9 @@ bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 /** Increase a node's misbehavior score. */
 void Misbehaving(NodeId nodeid, int howmuch, const std::string& message="");
 bool IsBanned(NodeId nodeid);
+
+void EraseObjectRequest(NodeId nodeId, const CInv& inv);
+void RequestObject(NodeId nodeId, const CInv& inv, std::chrono::microseconds current_time, bool fForce=false);
+size_t GetRequestedObjectCount(NodeId nodeId);
 
 #endif // BITCOIN_NET_PROCESSING_H

@@ -5,13 +5,13 @@
 #ifndef DASH_QUORUMS_SIGNING_H
 #define DASH_QUORUMS_SIGNING_H
 
-#include "llmq/quorums.h"
+#include <llmq/quorums.h>
 
-#include "net.h"
-#include "chainparams.h"
-#include "saltedhasher.h"
-#include "univalue.h"
-#include "unordered_lru_cache.h"
+#include <net.h>
+#include <chainparams.h>
+#include <saltedhasher.h>
+#include <univalue.h>
+#include <unordered_lru_cache.h>
 
 #include <unordered_map>
 
@@ -126,7 +126,7 @@ private:
 
     // Incoming and not verified yet
     std::unordered_map<NodeId, std::list<CRecoveredSig>> pendingRecoveredSigs;
-    std::list<std::pair<CRecoveredSig, CQuorumCPtr>> pendingReconstructedRecoveredSigs;
+    std::unordered_map<uint256, std::pair<CRecoveredSig, CQuorumCPtr>, StaticSaltedHasher> pendingReconstructedRecoveredSigs;
 
     // must be protected by cs
     FastRandomContext rnd;

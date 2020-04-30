@@ -8,7 +8,7 @@ There are currently two sets of tests in this directory:
 - [functional](/test/functional) which test the functionality of 
 dashd and dash-qt by interacting with them through the RPC and P2P
 interfaces.
-- [util](test/util) which tests the dash utilities, currently only
+- [util](/test/util) which tests the dash utilities, currently only
 dash-tx.
 
 The util tests are run as part of `make check` target. The functional
@@ -22,6 +22,11 @@ Build for your system first. Be sure to enable wallet, utils and daemon when you
 ### Functional tests
 
 #### Dependencies
+
+Many Dash specific tests require dash_hash. To install it:
+
+- Clone the repo `git clone https://github.com/dashpay/dash_hash`
+- Install dash_hash `cd dash_hash && python3 setup.py install`
 
 The ZMQ functional test requires a python ZMQ library. To install it:
 

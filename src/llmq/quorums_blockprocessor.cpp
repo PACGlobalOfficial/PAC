@@ -2,20 +2,20 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "quorums_blockprocessor.h"
-#include "quorums_commitment.h"
-#include "quorums_debug.h"
-#include "quorums_utils.h"
+#include <llmq/quorums_blockprocessor.h>
+#include <llmq/quorums_commitment.h>
+#include <llmq/quorums_debug.h>
+#include <llmq/quorums_utils.h>
 
-#include "evo/specialtx.h"
+#include <evo/specialtx.h>
 
-#include "chain.h"
-#include "chainparams.h"
-#include "consensus/validation.h"
-#include "net.h"
-#include "net_processing.h"
-#include "primitives/block.h"
-#include "validation.h"
+#include <chain.h>
+#include <chainparams.h>
+#include <consensus/validation.h>
+#include <net.h>
+#include <net_processing.h>
+#include <primitives/block.h>
+#include <validation.h>
 
 namespace llmq
 {
@@ -36,7 +36,7 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, const std::string& strC
         auto hash = ::SerializeHash(qc);
         {
             LOCK(cs_main);
-            connman.RemoveAskFor(hash);
+            EraseObjectRequest(pfrom->GetId(), CInv(MSG_QUORUM_FINAL_COMMITMENT, hash));
         }
 
         if (qc.IsNull()) {
@@ -409,6 +409,8 @@ bool CQuorumBlockProcessor::GetMinedCommitment(Consensus::LLMQType llmqType, con
 // The returned quorums are in reversed order, so the most recent one is at index 0
 std::vector<const CBlockIndex*> CQuorumBlockProcessor::GetMinedCommitmentsUntilBlock(Consensus::LLMQType llmqType, const CBlockIndex* pindex, size_t maxCount)
 {
+    LOCK(evoDb.cs);
+
     auto dbIt = evoDb.GetCurTransaction().NewIteratorUniquePtr();
 
     auto firstKey = BuildInversedHeightKey(llmqType, pindex->nHeight);

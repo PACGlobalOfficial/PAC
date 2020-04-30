@@ -3,15 +3,15 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "transactionrecord.h"
+#include <qt/transactionrecord.h>
 
-#include "base58.h"
-#include "consensus/consensus.h"
-#include "validation.h"
-#include "timedata.h"
-#include "wallet/wallet.h"
+#include <base58.h>
+#include <consensus/consensus.h>
+#include <validation.h>
+#include <timedata.h>
+#include <wallet/wallet.h>
 
-#include "privatesend/privatesend.h"
+#include <privatesend/privatesend.h>
 
 #include <stdint.h>
 
@@ -89,13 +89,15 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 {
                     // Received by PACGlobal Address
                     sub.type = TransactionRecord::RecvWithAddress;
-                    sub.strAddress = CBitcoinAddress(address).ToString();
+                    sub.strAddress = EncodeDestination(address);
+                    sub.txDest = address;
                 }
                 else
                 {
                     // Received by IP connection (deprecated features), or a multisignature or other non-simple transaction
                     sub.type = TransactionRecord::RecvFromOther;
                     sub.strAddress = mapValue["from"];
+                    sub.txDest = DecodeDestination(sub.strAddress);
                 }
                 if (wtx.IsCoinBase())
                 {
@@ -103,8 +105,6 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                     sub.type = TransactionRecord::Generated;
                 }
 
-                sub.address.SetString(sub.strAddress);
-                sub.txDest = sub.address.Get();
                 parts.append(sub);
             }
         }
@@ -161,12 +161,14 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 if (ExtractDestination(wtx.tx->vout[0].scriptPubKey, address))
                 {
                     // Sent to Dash Address
-                    sub.strAddress = CBitcoinAddress(address).ToString();
+                    sub.strAddress = EncodeDestination(address);
+                    sub.txDest = address;
                 }
                 else
                 {
                     // Sent to IP, or other non-address transaction like OP_EVAL
                     sub.strAddress = mapValue["to"];
+                    sub.txDest = DecodeDestination(sub.strAddress);
                 }
             }
             else
@@ -178,12 +180,20 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                     && CPrivateSend::IsCollateralAmount(-nNet))
                 {
                     sub.type = TransactionRecord::PrivateSendCollateralPayment;
+                } else if (wtx.tx->vout.size() == 2) {
+                    CAmount nMaxCollateralAmount = CPrivateSend::GetMaxCollateralAmount();
+                    CAmount nPreMaxCollateralAmount = nMaxCollateralAmount  - CPrivateSend::GetCollateralAmount();
+                    bool fMakeCollateral =
+                        wtx.tx->vout[0].nValue == nMaxCollateralAmount ||
+                        wtx.tx->vout[1].nValue == nMaxCollateralAmount ||
+                        (wtx.tx->vout[0].nValue == nPreMaxCollateralAmount && CPrivateSend::IsCollateralAmount(wtx.tx->vout[1].nValue)) ||
+                        (wtx.tx->vout[1].nValue == nPreMaxCollateralAmount && CPrivateSend::IsCollateralAmount(wtx.tx->vout[0].nValue));
+                    if (fMakeCollateral) {
+                        sub.type = TransactionRecord::PrivateSendMakeCollaterals;
+                    }
                 } else {
                     for (const auto& txout : wtx.tx->vout) {
-                        if (txout.nValue == CPrivateSend::GetMaxCollateralAmount()) {
-                            sub.type = TransactionRecord::PrivateSendMakeCollaterals;
-                            continue; // Keep looking, could be a part of PrivateSendCreateDenominations
-                        } else if (CPrivateSend::IsDenominatedAmount(txout.nValue)) {
+                        if (CPrivateSend::IsDenominatedAmount(txout.nValue)) {
                             sub.type = TransactionRecord::PrivateSendCreateDenominations;
                             break; // Done, it's definitely a tx creating mixing denoms, no need to look any further
                         }
@@ -195,8 +205,6 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
 
             sub.debit = -(nDebit - nChange);
             sub.credit = nCredit - nChange;
-            sub.address.SetString(sub.strAddress);
-            sub.txDest = sub.address.Get();
             parts.append(sub);
             parts.last().involvesWatchAddress = involvesWatchAddress;   // maybe pass to TransactionRecord as constructor argument
         }
@@ -240,13 +248,15 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 {
                     // Sent to PACGlobal Address
                     sub.type = TransactionRecord::SendToAddress;
-                    sub.strAddress = CBitcoinAddress(address).ToString();
+                    sub.strAddress = EncodeDestination(address);
+                    sub.txDest = address;
                 }
                 else
                 {
                     // Sent to IP, or other non-address transaction like OP_EVAL
                     sub.type = TransactionRecord::SendToOther;
                     sub.strAddress = mapValue["to"];
+                    sub.txDest = DecodeDestination(sub.strAddress);
                 }
 
                 if(mapValue["DS"] == "1")
@@ -316,7 +326,7 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx, int chainLockHeight)
         status.label = QString::fromStdString(addrBookIt->second.name);
     }
 
-    if (!CheckFinalTx(wtx))
+    if (!CheckFinalTx(*wtx.tx))
     {
         if (wtx.tx->nLockTime < LOCKTIME_THRESHOLD)
         {
@@ -394,7 +404,7 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx, int chainLockHeight)
     status.needsUpdate = false;
 }
 
-bool TransactionRecord::statusUpdateNeeded(int chainLockHeight)
+bool TransactionRecord::statusUpdateNeeded(int chainLockHeight) const
 {
     AssertLockHeld(cs_main);
     return status.cur_num_blocks != chainActive.Height() || status.needsUpdate

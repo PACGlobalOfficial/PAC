@@ -2,23 +2,25 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "quorums_dkgsessionhandler.h"
-#include "quorums_blockprocessor.h"
-#include "quorums_debug.h"
-#include "quorums_init.h"
-#include "quorums_utils.h"
+#include <llmq/quorums_dkgsessionhandler.h>
+#include <llmq/quorums_blockprocessor.h>
+#include <llmq/quorums_debug.h>
+#include <llmq/quorums_init.h>
+#include <llmq/quorums_utils.h>
 
-#include "masternode/activemasternode.h"
-#include "chainparams.h"
-#include "init.h"
-#include "net_processing.h"
-#include "validation.h"
+#include <masternode/activemasternode.h>
+#include <chainparams.h>
+#include <init.h>
+#include <net_processing.h>
+#include <spork.h>
+#include <validation.h>
 
 namespace llmq
 {
 
-CDKGPendingMessages::CDKGPendingMessages(size_t _maxMessagesPerNode) :
-    maxMessagesPerNode(_maxMessagesPerNode)
+CDKGPendingMessages::CDKGPendingMessages(size_t _maxMessagesPerNode, int _invType) :
+    maxMessagesPerNode(_maxMessagesPerNode),
+    invType(_invType)
 {
 }
 
@@ -49,7 +51,7 @@ void CDKGPendingMessages::PushPendingMessage(NodeId from, CDataStream& vRecv)
         return;
     }
 
-    g_connman->RemoveAskFor(hash);
+    EraseObjectRequest(from, CInv(invType, hash));
 
     pendingMessages.emplace_back(std::make_pair(from, std::move(pm)));
 }
@@ -89,10 +91,10 @@ CDKGSessionHandler::CDKGSessionHandler(const Consensus::LLMQParams& _params, ctp
     blsWorker(_blsWorker),
     dkgManager(_dkgManager),
     curSession(std::make_shared<CDKGSession>(_params, _blsWorker, _dkgManager)),
-    pendingContributions((size_t)_params.size * 2), // we allow size*2 messages as we need to make sure we see bad behavior (double messages)
-    pendingComplaints((size_t)_params.size * 2),
-    pendingJustifications((size_t)_params.size * 2),
-    pendingPrematureCommitments((size_t)_params.size * 2)
+    pendingContributions((size_t)_params.size * 2, MSG_QUORUM_CONTRIB), // we allow size*2 messages as we need to make sure we see bad behavior (double messages)
+    pendingComplaints((size_t)_params.size * 2, MSG_QUORUM_COMPLAINT),
+    pendingJustifications((size_t)_params.size * 2, MSG_QUORUM_JUSTIFICATION),
+    pendingPrematureCommitments((size_t)_params.size * 2, MSG_QUORUM_PREMATURE_COMMITMENT)
 {
     phaseHandlerThread = std::thread([this] {
         RenameThread(strprintf("pacglobal-q-phase-%d", (uint8_t)params.type).c_str());
@@ -121,9 +123,13 @@ void CDKGSessionHandler::UpdatedBlockTip(const CBlockIndex* pindexNew)
 
     bool fNewPhase = (quorumStageInt % params.dkgPhaseBlocks) == 0;
     int phaseInt = quorumStageInt / params.dkgPhaseBlocks + 1;
+    QuorumPhase oldPhase = phase;
     if (fNewPhase && phaseInt >= QuorumPhase_Initialized && phaseInt <= QuorumPhase_Idle) {
         phase = static_cast<QuorumPhase>(phaseInt);
     }
+
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionHandler::%s -- %s - currentHeight=%d, quorumHeight=%d, oldPhase=%d, newPhase=%d\n", __func__,
+            params.name, currentHeight, quorumHeight, oldPhase, phase);
 }
 
 void CDKGSessionHandler::ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)
@@ -155,7 +161,7 @@ bool CDKGSessionHandler::InitNewQuorum(const CBlockIndex* pindexQuorum)
     auto mns = CLLMQUtils::GetAllQuorumMembers(params.type, pindexQuorum);
 
     if (!curSession->Init(pindexQuorum, mns, activeMasternodeInfo.proTxHash)) {
-        LogPrintf("CDKGSessionManager::%s -- quorum initialiation failed\n", __func__);
+        LogPrintf("CDKGSessionManager::%s -- quorum initialiation failed for %s\n", __func__, curSession->params.name);
         return false;
     }
 
@@ -176,24 +182,31 @@ void CDKGSessionHandler::WaitForNextPhase(QuorumPhase curPhase,
                                           const uint256& expectedQuorumHash,
                                           const WhileWaitFunc& runWhileWaiting)
 {
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - starting, curPhase=%d, nextPhase=%d\n", __func__, params.name, curPhase, nextPhase);
+
     while (true) {
         if (stopRequested || ShutdownRequested()) {
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - aborting due to stop/shutdown requested\n", __func__, params.name);
             throw AbortPhaseException();
         }
         auto p = GetPhaseAndQuorumHash();
         if (!expectedQuorumHash.IsNull() && p.second != expectedQuorumHash) {
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - aborting due unexpected expectedQuorumHash change\n", __func__, params.name);
             throw AbortPhaseException();
         }
         if (p.first == nextPhase) {
             break;
         }
         if (curPhase != QuorumPhase_None && p.first != curPhase) {
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - aborting due unexpected phase change\n", __func__, params.name);
             throw AbortPhaseException();
         }
         if (!runWhileWaiting()) {
             MilliSleep(100);
         }
     }
+
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - done, curPhase=%d, nextPhase=%d\n", __func__, params.name, curPhase, nextPhase);
 
     if (nextPhase == QuorumPhase_Initialized) {
         quorumDKGDebugManager->ResetLocalSessionStatus(params.type);
@@ -208,16 +221,21 @@ void CDKGSessionHandler::WaitForNextPhase(QuorumPhase curPhase,
 
 void CDKGSessionHandler::WaitForNewQuorum(const uint256& oldQuorumHash)
 {
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - starting\n", __func__, params.name);
+
     while (true) {
         if (stopRequested || ShutdownRequested()) {
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - aborting due to stop/shutdown requested\n", __func__, params.name);
             throw AbortPhaseException();
         }
         auto p = GetPhaseAndQuorumHash();
         if (p.second != oldQuorumHash) {
-            return;
+            break;
         }
         MilliSleep(100);
     }
+
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - done\n", __func__, params.name);
 }
 
 // Sleep some time to not fully overload the whole network
@@ -255,8 +273,12 @@ void CDKGSessionHandler::SleepBeforePhase(QuorumPhase curPhase,
         LOCK(cs);
         heightTmp = heightStart = currentHeight;
     }
+
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - starting sleep for %d ms, curPhase=%d\n", __func__, params.name, sleepTime, curPhase);
+
     while (GetTimeMillis() < endTime) {
         if (stopRequested || ShutdownRequested()) {
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - aborting due to stop/shutdown requested\n", __func__, params.name);
             throw AbortPhaseException();
         }
         {
@@ -272,6 +294,7 @@ void CDKGSessionHandler::SleepBeforePhase(QuorumPhase curPhase,
             }
             if (phase != curPhase || quorumHash != expectedQuorumHash) {
                 // Smth went wrong and/or we missed quite a few blocks and it's just too late now
+                LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - aborting due unexpected phase/expectedQuorumHash change\n", __func__, params.name);
                 throw AbortPhaseException();
             }
         }
@@ -279,6 +302,8 @@ void CDKGSessionHandler::SleepBeforePhase(QuorumPhase curPhase,
             MilliSleep(100);
         }
     }
+
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - done, curPhase=%d\n", __func__, params.name, curPhase);
 }
 
 void CDKGSessionHandler::HandlePhase(QuorumPhase curPhase,
@@ -288,9 +313,13 @@ void CDKGSessionHandler::HandlePhase(QuorumPhase curPhase,
                                      const StartPhaseFunc& startPhaseFunc,
                                      const WhileWaitFunc& runWhileWaiting)
 {
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - starting, curPhase=%d, nextPhase=%d\n", __func__, params.name, curPhase, nextPhase);
+
     SleepBeforePhase(curPhase, expectedQuorumHash, randomSleepFactor, runWhileWaiting);
     startPhaseFunc();
     WaitForNextPhase(curPhase, nextPhase, expectedQuorumHash, runWhileWaiting);
+
+    LogPrint(BCLog::LLMQ_DKG, "CDKGSessionManager::%s -- %s - done, curPhase=%d, nextPhase=%d\n", __func__, params.name, curPhase, nextPhase);
 }
 
 // returns a set of NodeIds which sent invalid messages
@@ -388,7 +417,7 @@ std::set<NodeId> BatchVerifyMessageSigs(CDKGSession& session, const std::vector<
     return ret;
 }
 
-template<typename Message>
+template<typename Message, int MessageType>
 bool ProcessPendingMessageBatch(CDKGSession& session, CDKGPendingMessages& pendingMessages, size_t maxCount)
 {
     auto msgs = pendingMessages.PopAndDeserializeMessages<Message>(maxCount);
@@ -415,7 +444,7 @@ bool ProcessPendingMessageBatch(CDKGSession& session, CDKGPendingMessages& pendi
         auto hash = ::SerializeHash(msg);
         {
             LOCK(cs_main);
-            g_connman->RemoveAskFor(hash);
+            EraseObjectRequest(p.first, CInv(MessageType, hash));
         }
 
         bool ban = false;
@@ -500,32 +529,9 @@ void CDKGSessionHandler::HandleDKGRound()
         return changed;
     });
 
-    if (curSession->AreWeMember() || gArgs.GetBoolArg("-watchquorums", DEFAULT_WATCH_QUORUMS)) {
-        std::set<uint256> connections;
-        if (curSession->AreWeMember()) {
-            connections = CLLMQUtils::GetQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash);
-        } else {
-            auto cindexes = CLLMQUtils::CalcDeterministicWatchConnections(params.type, pindexQuorum, curSession->members.size(), 1);
-            for (auto idx : cindexes) {
-                connections.emplace(curSession->members[idx]->dmn->proTxHash);
-            }
-        }
-        if (!connections.empty()) {
-            if (LogAcceptCategory(BCLog::LLMQ_DKG)) {
-                std::string debugMsg = strprintf("CDKGSessionManager::%s -- adding masternodes quorum connections for quorum %s:\n", __func__, curSession->pindexQuorum->GetBlockHash().ToString());
-                auto mnList = deterministicMNManager->GetListAtChainTip();
-                for (const auto& c : connections) {
-                    auto dmn = mnList.GetValidMN(c);
-                    if (!dmn) {
-                        debugMsg += strprintf("  %s (not in valid MN set anymore)\n", c.ToString());
-                    } else {
-                        debugMsg += strprintf("  %s (%s)\n", c.ToString(), dmn->pdmnState->addr.ToString(false));
-                    }
-                }
-                LogPrint(BCLog::LLMQ_DKG, debugMsg.c_str());
-            }
-            g_connman->AddMasternodeQuorumNodes(params.type, curQuorumHash, connections);
-        }
+    CLLMQUtils::EnsureQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash, gArgs.GetBoolArg("-watchquorums", DEFAULT_WATCH_QUORUMS));
+    if (curSession->AreWeMember() && sporkManager.IsSporkActive(SPORK_21_QUORUM_ALL_CONNECTED)) {
+        CLLMQUtils::AddQuorumProbeConnections(params.type, pindexQuorum, curSession->myProTxHash);
     }
 
     WaitForNextPhase(QuorumPhase_Initialized, QuorumPhase_Contribute, curQuorumHash, []{return false;});
@@ -535,7 +541,7 @@ void CDKGSessionHandler::HandleDKGRound()
         curSession->Contribute(pendingContributions);
     };
     auto fContributeWait = [this] {
-        return ProcessPendingMessageBatch<CDKGContribution>(*curSession, pendingContributions, 8);
+        return ProcessPendingMessageBatch<CDKGContribution, MSG_QUORUM_CONTRIB>(*curSession, pendingContributions, 8);
     };
     HandlePhase(QuorumPhase_Contribute, QuorumPhase_Complain, curQuorumHash, 0.05, fContributeStart, fContributeWait);
 
@@ -544,7 +550,7 @@ void CDKGSessionHandler::HandleDKGRound()
         curSession->VerifyAndComplain(pendingComplaints);
     };
     auto fComplainWait = [this] {
-        return ProcessPendingMessageBatch<CDKGComplaint>(*curSession, pendingComplaints, 8);
+        return ProcessPendingMessageBatch<CDKGComplaint, MSG_QUORUM_COMPLAINT>(*curSession, pendingComplaints, 8);
     };
     HandlePhase(QuorumPhase_Complain, QuorumPhase_Justify, curQuorumHash, 0.05, fComplainStart, fComplainWait);
 
@@ -553,7 +559,7 @@ void CDKGSessionHandler::HandleDKGRound()
         curSession->VerifyAndJustify(pendingJustifications);
     };
     auto fJustifyWait = [this] {
-        return ProcessPendingMessageBatch<CDKGJustification>(*curSession, pendingJustifications, 8);
+        return ProcessPendingMessageBatch<CDKGJustification, MSG_QUORUM_JUSTIFICATION>(*curSession, pendingJustifications, 8);
     };
     HandlePhase(QuorumPhase_Justify, QuorumPhase_Commit, curQuorumHash, 0.05, fJustifyStart, fJustifyWait);
 
@@ -562,7 +568,7 @@ void CDKGSessionHandler::HandleDKGRound()
         curSession->VerifyAndCommit(pendingPrematureCommitments);
     };
     auto fCommitWait = [this] {
-        return ProcessPendingMessageBatch<CDKGPrematureCommitment>(*curSession, pendingPrematureCommitments, 8);
+        return ProcessPendingMessageBatch<CDKGPrematureCommitment, MSG_QUORUM_PREMATURE_COMMITMENT>(*curSession, pendingPrematureCommitments, 8);
     };
     HandlePhase(QuorumPhase_Commit, QuorumPhase_Finalize, curQuorumHash, 0.1, fCommitStart, fCommitWait);
 
@@ -576,13 +582,14 @@ void CDKGSessionHandler::PhaseHandlerThread()
 {
     while (!stopRequested && !ShutdownRequested()) {
         try {
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionHandler::%s -- %s - starting HandleDKGRound\n", __func__, params.name);
             HandleDKGRound();
         } catch (AbortPhaseException& e) {
             quorumDKGDebugManager->UpdateLocalSessionStatus(params.type, [&](CDKGDebugSessionStatus& status) {
                 status.aborted = true;
                 return true;
             });
-            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionHandler::%s -- aborted current DKG session for llmq=%s\n", __func__, params.name);
+            LogPrint(BCLog::LLMQ_DKG, "CDKGSessionHandler::%s -- %s - aborted current DKG session\n", __func__, params.name);
         }
     }
 }

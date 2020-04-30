@@ -3,18 +3,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifdef HAVE_CONFIG_H
-#include "config/pacglobal-config.h"
-#endif
+#include <netbase.h>
 
-#include "netbase.h"
-
-#include "hash.h"
-#include "sync.h"
-#include "uint256.h"
-#include "random.h"
-#include "util.h"
-#include "utilstrencodings.h"
+#include <hash.h>
+#include <sync.h>
+#include <uint256.h>
+#include <random.h>
+#include <util.h>
+#include <utilstrencodings.h>
 
 #include <atomic>
 
@@ -24,15 +20,18 @@
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 #include <boost/algorithm/string/predicate.hpp> // for startswith() and endswith()
+#ifdef USE_POLL
+#include <poll.h>
+#endif
 
 #if !defined(HAVE_MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
 #endif
 
 // Settings
-static proxyType proxyInfo[NET_MAX];
-static proxyType nameProxy;
 static CCriticalSection cs_proxyInfos;
+static proxyType proxyInfo[NET_MAX] GUARDED_BY(cs_proxyInfos);
+static proxyType nameProxy GUARDED_BY(cs_proxyInfos);
 int nConnectTimeout = DEFAULT_CONNECT_TIMEOUT;
 bool fNameLookup = DEFAULT_NAME_LOOKUP;
 
@@ -265,11 +264,19 @@ static IntrRecvError InterruptibleRecv(uint8_t* data, size_t len, int timeout, c
                 if (!IsSelectableSocket(hSocket)) {
                     return IntrRecvError::NetworkError;
                 }
-                struct timeval tval = MillisToTimeval(std::min(endTime - curTime, maxWait));
+                int timeout_ms = std::min(endTime - curTime, maxWait);
+#ifdef USE_POLL
+                struct pollfd pollfd = {};
+                pollfd.fd = hSocket;
+                pollfd.events = POLLIN | POLLOUT;
+                int nRet = poll(&pollfd, 1, timeout_ms);
+#else
+                struct timeval tval = MillisToTimeval(timeout_ms);
                 fd_set fdset;
                 FD_ZERO(&fdset);
                 FD_SET(hSocket, &fdset);
                 int nRet = select(hSocket + 1, &fdset, nullptr, nullptr, &tval);
+#endif
                 if (nRet == SOCKET_ERROR) {
                     return IntrRecvError::NetworkError;
                 }
@@ -490,11 +497,18 @@ bool ConnectSocketDirectly(const CService &addrConnect, const SOCKET& hSocket, i
         // WSAEINVAL is here because some legacy version of winsock uses it
         if (nErr == WSAEINPROGRESS || nErr == WSAEWOULDBLOCK || nErr == WSAEINVAL)
         {
+#ifdef USE_POLL
+            struct pollfd pollfd = {};
+            pollfd.fd = hSocket;
+            pollfd.events = POLLIN | POLLOUT;
+            int nRet = poll(&pollfd, 1, nTimeout);
+#else
             struct timeval timeout = MillisToTimeval(nTimeout);
             fd_set fdset;
             FD_ZERO(&fdset);
             FD_SET(hSocket, &fdset);
             int nRet = select(hSocket + 1, nullptr, &fdset, nullptr, &timeout);
+#endif
             if (nRet == 0)
             {
                 LogPrint(BCLog::NET, "connection to %s timeout\n", addrConnect.ToString());
