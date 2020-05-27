@@ -1,17 +1,17 @@
-#include "governancelist.h"
-#include "ui_governancelist.h"
+#include <qt/governancelist.h>
+#include <qt/forms/ui_governancelist.h>
 #include <masternode/masternode-sync.h>
 #include <messagesigner.h>
 #include <governance/governance.h>
 #include <governance/governance-vote.h>
 #include <governance/governance-classes.h>
 #include <governance/governance-validators.h>
-#include <governancedialog.h>
+#include <qt/governancedialog.h>
 #include <messagesigner.h>
-#include <clientmodel.h>
+#include <qt/clientmodel.h>
 #include <validation.h>
 #include <uint256.h>
-#include <guiutil.h>
+#include <qt/guiutil.h>
 
 #include <QTimer>
 #include <QMessageBox>

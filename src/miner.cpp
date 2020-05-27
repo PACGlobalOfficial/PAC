@@ -7,6 +7,7 @@
 #include <miner.h>
 
 #include <amount.h>
+#include <blocksigner.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <coins.h>
@@ -15,6 +16,7 @@
 #include <consensus/merkle.h>
 #include <consensus/validation.h>
 #include <hash.h>
+#include <init.h>
 #include <validation.h>
 #include <net.h>
 #include <policy/feerate.h>
@@ -28,6 +30,7 @@
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
 #include <validationinterface.h>
+#include <wallet/wallet.h>
 
 #include <evo/specialtx.h>
 #include <evo/cbtx.h>
@@ -167,7 +170,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(CWallet *wallet, 
     coinbaseTx.vout.resize(1);
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
     CAmount blockReward = GetBlockSubsidy(pindexPrev->nHeight, Params().GetConsensus());
-    std::vector<const CWalletTx*> vwtxPrev;
 
     if(fProofOfStake) {
         assert(wallet);
@@ -178,7 +180,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(CWallet *wallet, 
         bool fStakeFound = false;
         if (nSearchTime >= nLastCoinStakeSearchTime) {
             unsigned int nTxNewTime = 0;
-            if (wallet->CreateCoinStake(*wallet, pblock->nBits, blockReward, coinstakeTx, nTxNewTime, vwtxPrev)) {
+            if (wallet->CreateCoinStake(*wallet, pblock->nBits, blockReward, coinstakeTx, nTxNewTime)) {
                 pblock->nTime = nTxNewTime;
                 coinbaseTx.vout[0].SetEmpty();
                 FillBlockPayments(coinstakeTx, nHeight, blockReward, pblocktemplate->voutMasternodePayments, pblocktemplate->voutSuperblockPayments);

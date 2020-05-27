@@ -5,6 +5,7 @@
 
 #include <wallet/fees.h>
 
+#include <feerates.h>
 #include <policy/policy.h>
 #include <txmempool.h>
 #include <util.h>
@@ -15,7 +16,7 @@
 
 CAmount GetRequiredFee(unsigned int nTxBytes)
 {
-    return std::max(CWallet::minTxFee.GetFee(nTxBytes), ::minRelayTxFee.GetFee(nTxBytes));
+    return std::max(CWallet::minTxFee.GetFee(nTxBytes), MinRelayFee().GetFee(nTxBytes));
 }
 
 CAmount GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_control, const CTxMemPool& pool, const CBlockPolicyEstimator& estimator, FeeCalculation *feeCalc)

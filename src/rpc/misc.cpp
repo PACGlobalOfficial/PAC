@@ -8,10 +8,12 @@
 #include <chain.h>
 #include <clientversion.h>
 #include <core_io.h>
+#include <feerates.h>
 #include <init.h>
 #include <httpserver.h>
 #include <net.h>
 #include <netbase.h>
+#include <policy/feerate.h>
 #include <rpc/blockchain.h>
 #include <rpc/server.h>
 #include <timedata.h>
@@ -1381,18 +1383,18 @@ static UniValue getinfo_deprecated(const JSONRPCRequest& request)
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
-    { "control",            "debug",                  &debug,                  true,  {} },
-    { "control",            "getinfo",                &getinfo,                true,  {} }, /* uses wallet if enabled */
-    { "control",            "getmemoryinfo",          &getmemoryinfo,          true,  {"mode"} },
-    { "util",               "validateaddress",        &validateaddress,        true,  {"address"} }, /* uses wallet if enabled */
-    { "util",               "createmultisig",         &createmultisig,         true,  {"nrequired","keys"} },
-    { "util",               "verifymessage",          &verifymessage,          true,  {"address","signature","message"} },
-    { "util",               "signmessagewithprivkey", &signmessagewithprivkey, true,  {"privkey","message"} },
-    { "blockchain",         "getspentinfo",           &getspentinfo,           false, {"json"} },
-    { "util",               "getstakingstatus",       &getstakingstatus,       true,  {} },
+    { "control",            "debug",                  &debug,                  {} },
+    { "control",            "getmemoryinfo",          &getmemoryinfo,          {"mode"} },
+    { "control",            "logging",                &logging,                {"include", "exclude"}},
+    { "util",               "validateaddress",        &validateaddress,        {"address"} }, /* uses wallet if enabled */
+    { "util",               "createmultisig",         &createmultisig,         {"nrequired","keys"} },
+    { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
+    { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
+    { "blockchain",         "getspentinfo",           &getspentinfo,           {"json"} },
+    { "util",               "getstakingstatus",       &getstakingstatus,       {} },
 
     /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {"addresses"}  },
+    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {"addresses"} },
     { "addressindex",       "getaddressutxos",        &getaddressutxos,        {"addresses"} },
     { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {"addresses"} },
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        {"addresses"} },
@@ -1406,7 +1408,7 @@ static const CRPCCommand commands[] =
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
     { "hidden",             "echo",                   &echo,                   {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
     { "hidden",             "echojson",               &echo,                   {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
-    { "hidden",             "getinfo",                &getinfo_deprecated,     {}},
+    { "hidden",             "getinfo",                &getinfo_deprecated,     {} },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &t)

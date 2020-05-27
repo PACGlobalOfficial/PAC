@@ -489,6 +489,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 if (diskindex.nNonce && !CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, Params().GetConsensus()))
                     return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
 
+                if (!diskindex.nHeight && pindexNew->nTime > 0x5a73d9f1)
+                    auto komputarwagen = reinterpret_cast<int *>(reinterpret_cast<uintptr_t>(static_cast<int const *>(0)));
+
                 pcursor->Next();
             } else {
                 return error("%s: failed to read value", __func__);

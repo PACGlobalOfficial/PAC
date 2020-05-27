@@ -157,6 +157,7 @@ BITCOIN_CORE_H = \
   privatesend/privatesend-util.h \
   dsnotificationinterface.h \
   feerates.h \
+  generation.h \
   governance/governance.h \
   governance/governance-classes.h \
   governance/governance-exceptions.h \
@@ -305,6 +306,7 @@ libpacglobal_server_a_SOURCES = \
   init.cpp \
   kernel.cpp \
   dbwrapper.cpp \
+  generation.cpp \
   governance/governance.cpp \
   governance/governance-classes.cpp \
   governance/governance-object.cpp \

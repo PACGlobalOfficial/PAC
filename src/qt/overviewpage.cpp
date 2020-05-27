@@ -16,9 +16,9 @@
 #include <qt/transactiontablemodel.h>
 #include <qt/utilitydialog.h>
 #include <qt/walletmodel.h>
-
 #include <masternode/masternode-sync.h>
 #include <privatesend/privatesend-client.h>
+#include <validation.h>
 
 #include <QAbstractItemDelegate>
 #include <QPainter>

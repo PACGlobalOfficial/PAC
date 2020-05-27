@@ -9,10 +9,12 @@
 #include <base58.h>
 #include <checkpoints.h>
 #include <chain.h>
+#include <feerates.h>
 #include <wallet/coincontrol.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
 #include <fs.h>
+#include <kernel.h>
 #include <wallet/init.h>
 #include <key.h>
 #include <keystore.h>
@@ -48,7 +50,7 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
 
-static std::vector<CWallet*> vpwallets;
+std::vector<CWallet*> vpwallets;
 
 bool AddWallet(CWallet* wallet)
 {
@@ -73,11 +75,6 @@ bool HasWallets()
     return !vpwallets.empty();
 }
 
-std::vector<CWallet*> GetWallets()
-{
-    return vpwallets;
-}
-
 CWallet* GetWallet(const std::string& name)
 {
     for (CWallet* wallet : vpwallets) {
@@ -90,6 +87,7 @@ CWallet* GetWallet(const std::string& name)
 CFeeRate payTxFee(DEFAULT_TRANSACTION_FEE);
 unsigned int nTxConfirmTarget = DEFAULT_TX_CONFIRM_TARGET;
 bool bSpendZeroConfChange = DEFAULT_SPEND_ZEROCONF_CHANGE;
+const char * DEFAULT_WALLET_DAT = "wallet.dat";
 
 /**
  * Fees smaller than this (in duffs) are considered zero fee (for transaction creation)
@@ -1298,7 +1296,7 @@ bool CWallet::AbandonTransaction(const uint256& hashTx)
     auto it = mapWallet.find(hashTx);
     assert(it != mapWallet.end());
     CWalletTx& origtx = it->second;
-    if (origtx.GetDepthInMainChain() > 0 || origtx.InMempool() || origtx.IsLockedByInstantSend()) {
+    if (origtx.GetDepthInMainChain() > 0 || origtx.InMempool() || origtx.IsLockedByInstaPAC()) {
         return false;
     }
 
@@ -4194,7 +4192,7 @@ void CWallet::FillCoinStakePayments(CMutableTransaction &transaction,
 }
 
 typedef std::vector<unsigned char> valtype;
-bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, CAmount blockReward, CMutableTransaction &txNew, unsigned int &nTxNewTime, std::vector<const CWalletTx*> &vwtxPrev)
+bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, CAmount blockReward, CMutableTransaction &txNew, unsigned int &nTxNewTime)
 {
     // The following split & combine thresholds are important to security
     // Should not be adjusted if you don't understand the consequences
@@ -4229,10 +4227,6 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, CAm
 
     CScript scriptPubKeyKernel;
 
-    // potential mitigation of 'assert: pindexPrev == chainActive.Tip()'
-    // if (GetAdjustedTime() <= chainActive.Tip()->nTime)
-    //     MilliSleep(10000);
-
     bool fKernelFound = false;
     for(const std::pair<const CWalletTx*, unsigned int> &pcoin : setStakeCoins)
     {
@@ -4250,7 +4244,6 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, CAm
         CBlockHeader block = pindex->GetBlockHeader();
         COutPoint prevoutStake = COutPoint(pcoin.first->GetHash(), pcoin.second);
         nTxNewTime = GetAdjustedTime();
-        //iterates each utxo inside of CheckStakeKernelHash()
         CScript kernelScript;
         auto stakeScript = pcoin.first->tx->vout[pcoin.second].scriptPubKey;
         fKernelFound = CreateCoinStakeKernel(kernelScript, stakeScript, nBits, block, sizeof(CBlock), pcoin.first->tx, prevoutStake, nTxNewTime, false);

@@ -13,9 +13,9 @@
 #include <coins.h>
 #include <core_io.h>
 #include <consensus/validation.h>
+#include <feerates.h>
 #include <validation.h>
 #include <core_io.h>
-// #include <rpc/index/txindex.h>
 #include <policy/feerate.h>
 #include <policy/policy.h>
 #include <primitives/transaction.h>
@@ -1654,8 +1654,8 @@ UniValue mempoolInfoToJSON()
     ret.push_back(Pair("usage", (int64_t) mempool.DynamicMemoryUsage()));
     size_t maxmempool = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
     ret.push_back(Pair("maxmempool", (int64_t) maxmempool));
-    ret.push_back(Pair("mempoolminfee", ValueFromAmount(std::max(mempool.GetMinFee(maxmempool), ::minRelayTxFee).GetFeePerK())));
-    ret.push_back(Pair("minrelaytxfee", ValueFromAmount(::minRelayTxFee.GetFeePerK())));
+    ret.push_back(Pair("mempoolminfee", ValueFromAmount(std::max(mempool.GetMinFee(maxmempool), MinRelayFee()).GetFeePerK())));
+    ret.push_back(Pair("minrelaytxfee", ValueFromAmount(MinRelayFee().GetFeePerK())));
     ret.push_back(Pair("instantsendlocks", (int64_t)llmq::quorumInstantSendManager->GetInstantSendLockCount()));
 
     return ret;
@@ -1973,10 +1973,6 @@ static UniValue getblockstats(const JSONRPCRequest& request)
         if (mapBlockIndex.count(hash) == 0)
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
         pindex = mapBlockIndex[hash];
-        // pindex = LookupBlockIndex(hash);
-        // if (!pindex) {
-        //     throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-        // }
         if (!chainActive.Contains(pindex)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Block is not in chain %s", Params().NetworkIDString()));
         }

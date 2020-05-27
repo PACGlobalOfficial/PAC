@@ -38,6 +38,9 @@
 #include <utility>
 #include <vector>
 
+typedef CWallet* CWalletRef;
+extern std::vector<CWalletRef> vpwallets;
+
 bool AddWallet(CWallet* wallet);
 bool RemoveWallet(CWallet* wallet);
 bool HasWallets();
@@ -862,7 +865,7 @@ public:
 
     // Map from Script ID to key metadata (for watch-only keys).
     std::map<CScriptID, CKeyMetadata> m_script_metadata;
-
+    bool ParameterInteraction();
     typedef std::map<unsigned int, CMasterKey> MasterKeyMap;
     MasterKeyMap mapMasterKeys;
     unsigned int nMasterKeyMaxID;
@@ -913,6 +916,9 @@ public:
     int64_t nOrderPosNext;
     uint64_t nAccountingEntryNumber;
     std::map<uint256, int> mapRequestCount;
+
+    CAmount GetRequiredFee(unsigned int nTxBytes);
+    CAmount GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_control, const CTxMemPool& pool, const CBlockPolicyEstimator& estimator, FeeCalculation *feeCalc);
 
     std::map<CTxDestination, CAddressBookData> mapAddressBook;
 
@@ -1106,7 +1112,7 @@ public:
      * @note passing nChangePosInOut as -1 will result in setting a random position
      */
     bool CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, bool sign = true, int nExtraPayloadSize = 0);
-    bool CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, CAmount blockReward, CMutableTransaction& txNew, unsigned int& nTxNewTime, std::vector<const CWalletTx *> &vwtxPrev);
+    bool CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, CAmount blockReward, CMutableTransaction& txNew, unsigned int& nTxNewTime);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
 
     bool CreateCollateralTransaction(CMutableTransaction& txCollateral, std::string& strReason);

@@ -57,7 +57,7 @@ static const bool DEFAULT_WHITELISTRELAY = true;
 /** Default for -whitelistforcerelay. */
 static const bool DEFAULT_WHITELISTFORCERELAY = true;
 /** Default for -minrelaytxfee, minimum relay fee for transactions */
-static const unsigned int DEFAULT_MIN_RELAY_TX_FEE = 0.5 * COIN;
+static const CAmount DEFAULT_MIN_RELAY_TX_FEE = 0.5 * COIN;
 //! -maxtxfee default
 static const CAmount DEFAULT_TRANSACTION_MAXFEE = 5000 * COIN;
 //! Discourage users to set fees higher than this amount (in duffs) per kB
@@ -258,7 +258,7 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
  * @param[out] ppindex If set, the pointer will be set to point to the last new block index object for the given headers
  * @param[out] first_invalid First header that fails validation, if one exists
  */
-bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& block, CValidationState& state, const CChainParams& chainparams, const CBlockIndex** ppindex = nullptr, CBlockHeader* first_invalid = nullptr,  const CBlockIndex** pindexFirst=nullptr) LOCKS_EXCLUDED(cs_main);
+bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& block, CValidationState& state, const CChainParams& chainparams, const CBlockIndex** ppindex=nullptr, CBlockHeader *first_invalid=nullptr);
 
 /** Check whether enough disk space is available for an incoming block */
 bool CheckDiskSpace(uint64_t nAdditionalBytes = 0);
@@ -318,9 +318,9 @@ void PruneBlockFilesManual(int nManualPruneHeight);
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx,
                         bool* pfMissingInputs, bool bypass_limits,
                         const CAmount nAbsurdFee, bool fDryRun=false);
-static bool AcceptToMemoryPoolWithTime(const CChainParams& chainparams, CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx,
-                                       bool* pfMissingInputs, int64_t nAcceptTime, bool bypass_limits,
-                                       const CAmount nAbsurdFee, bool fDryRun = false);
+bool AcceptToMemoryPoolWithTime(const CChainParams& chainparams, CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx,
+                                bool* pfMissingInputs, int64_t nAcceptTime, bool bypass_limits,
+                                const CAmount nAbsurdFee, bool fDryRun = false);
 
 bool GetUTXOCoin(const COutPoint& outpoint, Coin& coin);
 int GetUTXOHeight(const COutPoint& outpoint);
@@ -418,7 +418,6 @@ void InitScriptExecutionCache();
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& messageStart);
-
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams);
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams);
 bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& message_start);
@@ -515,14 +514,8 @@ bool IgnoreSigopsLimits(int nHeight);
 //! Returns true if we have entered PoS consensus state
 bool IsPoS();
 
-//! Returns whether full DIP3 enforcement is active
-bool FullDIP0003Mode();
-
 //! Returns whether hardened stake checks are enabled
 bool HardenedStakeChecks();
-
-//! Return the current minimum relay tx fee
-CFeeRate CurrentRelayFee();
 
 //! Returns confirmations required to spend coinbase
 int ConfirmationsPerNetwork();

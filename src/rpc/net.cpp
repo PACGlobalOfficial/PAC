@@ -9,9 +9,11 @@
 #include <clientversion.h>
 #include <core_io.h>
 #include <validation.h>
+#include <feerates.h>
 #include <net.h>
 #include <net_processing.h>
 #include <netbase.h>
+#include <policy/feerate.h>
 #include <policy/policy.h>
 #include <rpc/protocol.h>
 #include <sync.h>

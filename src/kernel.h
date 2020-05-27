@@ -19,6 +19,7 @@ static const unsigned int MODIFIER_INTERVAL = 60;
 static const unsigned int MODIFIER_INTERVAL_TESTNET = 20;
 extern unsigned int nModifierInterval;
 extern unsigned int getIntervalVersion(bool fTestNet);
+extern int64_t nLastCoinStakeSearchInterval;
 
 // MODIFIER_INTERVAL_RATIO:
 // ratio of group interval length between the last group and the first group

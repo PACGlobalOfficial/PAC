@@ -5,6 +5,7 @@
 
 #include <wallet/init.h>
 
+#include <feerates.h>
 #include <keepass.h>
 #include <net.h>
 #include <scheduler.h>
@@ -138,7 +139,7 @@ bool WalletInit::ParameterInteraction()
     if (gArgs.GetArg("-prune", 0) && gArgs.GetBoolArg("-rescan", false))
         return InitError(_("Rescans are not possible in pruned mode. You will need to use -reindex which will download the whole blockchain again."));
 
-    if (::minRelayTxFee.GetFeePerK() > HIGH_TX_FEE_PER_KB)
+    if (MinRelayFee().GetFeePerK() > HIGH_TX_FEE_PER_KB)
         InitWarning(AmountHighWarn("-minrelaytxfee") + " " +
                     _("The wallet will avoid paying less than the minimum relay fee."));
 
@@ -182,10 +183,10 @@ bool WalletInit::ParameterInteraction()
                         _("This is the transaction fee you will pay if you send a transaction."));
 
         payTxFee = CFeeRate(nFeePerK, 1000);
-        if (payTxFee < ::minRelayTxFee)
+        if (payTxFee < MinRelayFee())
         {
             return InitError(strprintf(_("Invalid amount for -paytxfee=<amount>: '%s' (must be at least %s)"),
-                                       gArgs.GetArg("-paytxfee", ""), ::minRelayTxFee.ToString()));
+                                       gArgs.GetArg("-paytxfee", ""), MinRelayFee().ToString()));
         }
     }
     if (gArgs.IsArgSet("-maxtxfee"))
@@ -196,10 +197,10 @@ bool WalletInit::ParameterInteraction()
         if (nMaxFee > HIGH_MAX_TX_FEE)
             InitWarning(_("-maxtxfee is set very high! Fees this large could be paid on a single transaction."));
         maxTxFee = nMaxFee;
-        if (CFeeRate(maxTxFee, 1000) < ::minRelayTxFee)
+        if (CFeeRate(maxTxFee, 1000) < MinRelayFee())
         {
             return InitError(strprintf(_("Invalid amount for -maxtxfee=<amount>: '%s' (must be at least the minrelay fee of %s to prevent stuck transactions)"),
-                                       gArgs.GetArg("-maxtxfee", ""), ::minRelayTxFee.ToString()));
+                                       gArgs.GetArg("-maxtxfee", ""), MinRelayFee().ToString()));
         }
     }
     nTxConfirmTarget = gArgs.GetArg("-txconfirmtarget", DEFAULT_TX_CONFIRM_TARGET);

@@ -31,10 +31,12 @@
 
 #include <chainparams.h>
 #include <init.h>
+#include <kernel.h>
 #include <ui_interface.h>
 #include <util.h>
 #include <masternode/masternode-sync.h>
 #include <qt/masternodelist.h>
+#include <validation.h>
 
 #include <iostream>
 
