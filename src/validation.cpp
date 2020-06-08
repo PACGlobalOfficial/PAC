@@ -2390,7 +2390,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     LogPrint(BCLog::BENCHMARK, "      - GetBlockSubsidy: %.2fms [%.2fs (%.2fms/blk)]\n", MICRO * (nTime5_2 - nTime5_1), nTimeSubsidy * MICRO, nTimeSubsidy * MILLI / nBlocksTotal);
 
     if (pindex->nHeight >= chainparams.GetConsensus().DIP0003Height) {
-       if (!IsBlockValueValid(block, pindex->nHeight, blockReward, strError)) {
+       if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
            return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
        }
     }
@@ -2399,7 +2399,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs (%.2fms/blk)]\n", MICRO * (nTime5_3 - nTime5_2), nTimeValueValid * MICRO, nTimeValueValid * MILLI / nBlocksTotal);
 
     bool isProofOfStake = !block.IsProofOfWork();
-    if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward)) {
+    if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward, pindex->nMint)) {
         return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
     }
 
