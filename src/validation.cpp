@@ -18,6 +18,7 @@
 #include <consensus/validation.h>
 #include <cuckoocache.h>
 #include <feerates.h>
+#include <generation.h>
 #include <hash.h>
 #include <init.h>
 #include <kernel.h>
@@ -2389,9 +2390,13 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     int64_t nTime5_2 = GetTimeMicros(); nTimeSubsidy += nTime5_2 - nTime5_1;
     LogPrint(BCLog::BENCHMARK, "      - GetBlockSubsidy: %.2fms [%.2fs (%.2fms/blk)]\n", MICRO * (nTime5_2 - nTime5_1), nTimeSubsidy * MICRO, nTimeSubsidy * MILLI / nBlocksTotal);
 
-    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003Height) {
+    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight) {
        if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
-           return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
+          if (!isGenerationBlock(pindex->nHeight)) {
+             return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
+          } else {
+             LogPrintf("Allowing large coinbase output (isGenerationBlock is true)\n");
+          }
        }
     }
 

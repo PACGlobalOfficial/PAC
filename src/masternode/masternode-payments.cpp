@@ -349,7 +349,7 @@ bool CMasternodePayments::IsTransactionValid(const CTransaction& txNew, int nBlo
     const Consensus::Params& consensusParams = Params().GetConsensus();
 
     //! no data exists pre-DIP0003 engagement, cannot validate payees before then
-    if (nBlockHeight < consensusParams.DIP0003Height)
+    if (nBlockHeight < consensusParams.DIP0003EnforcementHeight)
         return true;
 
     std::vector<CTxOut> voutMasternodePayments;
