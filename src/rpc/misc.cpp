@@ -1188,6 +1188,34 @@ UniValue getstakingstatus(const JSONRPCRequest& request)
     return obj;
 }
 
+UniValue setstaking(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() == 0)
+        throw std::runtime_error(
+            "staking\n"
+            "Returns an object that can be toggled to enable or disable staking.\n"
+            "}\n"
+            "\nExamples:\n" +
+            HelpExampleCli("setstaking", "true"));
+
+    if (!masternodeSync.IsSynced() || !masternodeSync.IsBlockchainSynced())
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Blockchain or masternode sync has not completed.");
+
+    UniValue obj(UniValue::VOBJ);
+    std::string mode = request.params[0].isNull() ? "false" : request.params[0].get_str();
+    if (mode == "true")
+       SetStakingEnabled(true);
+    else
+       SetStakingEnabled(false);
+
+    usleep(100000);
+    bool nStaking = IsStakingEnabled();
+    obj.push_back(Pair("staking status", nStaking));
+
+    return obj;
+}
+
+
 static UniValue RPCLockedMemoryInfo()
 {
     LockedPool::Stats stats = LockedPoolManager::Instance().stats();
@@ -1392,6 +1420,7 @@ static const CRPCCommand commands[] =
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
     { "blockchain",         "getspentinfo",           &getspentinfo,           {"json"} },
     { "util",               "getstakingstatus",       &getstakingstatus,       {} },
+    { "util",               "setstaking",             &setstaking,             {"mode"} },
 
     /* Address index */
     { "addressindex",       "getaddressmempool",      &getaddressmempool,      {"addresses"} },
