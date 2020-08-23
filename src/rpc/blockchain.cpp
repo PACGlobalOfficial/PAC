@@ -1929,10 +1929,6 @@ static UniValue getblockstats(const JSONRPCRequest& request)
         if (mapBlockIndex.count(hash) == 0)
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
         pindex = mapBlockIndex[hash];
-        // pindex = LookupBlockIndex(hash);
-        // if (!pindex) {
-        //     throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-        // }
         if (!chainActive.Contains(pindex)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Block is not in chain %s", Params().NetworkIDString()));
         }

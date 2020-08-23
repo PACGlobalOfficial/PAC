@@ -135,7 +135,7 @@ void CActiveMasternodeManager::UpdatedBlockTip(const CBlockIndex* pindexNew, con
     LOCK(cs_main);
 
     if (!fMasternodeMode) return;
-    if (!FullDIP0003Mode()) return;
+    if (!deterministicMNManager->IsDIP3Enforced()) return;
 
     if (state == MASTERNODE_READY) {
         auto oldMNList = deterministicMNManager->GetListForBlock(pindexNew->pprev);

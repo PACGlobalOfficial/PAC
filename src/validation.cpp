@@ -719,7 +719,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         }
 
         // No transactions are allowed below minRelayTxFee except from disconnected blocks
-        if (fLimitFree && nModifiedFees < MinRelayFee().GetFee(nSize)) {
+        if (!bypass_limits && nModifiedFees < MinRelayFee().GetFee(nSize)) {
             return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "min relay fee not met");
         }
 
@@ -902,12 +902,13 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
 
     } else {
 
+    if (pindexSlow) {
         CBlock block;
-        if (ReadBlockFromDisk(block, block_index, consensusParams)) {
+        if (ReadBlockFromDisk(block, pindexSlow, consensusParams)) {
             for (const auto& tx : block.vtx) {
                 if (tx->GetHash() == hash) {
                     txOut = tx;
-                    hashBlock = block_index->GetBlockHash();
+                    hashBlock = pindexSlow->GetBlockHash();
                     return true;
                 }
             }
@@ -1235,14 +1236,19 @@ static void CheckForkWarningConditions()
         }
         if (pindexBestForkTip && pindexBestForkBase)
         {
+            if(pindexBestForkBase->phashBlock){
                 LogPrintf("%s: Warning: Large valid fork found\n  forking the chain at height %d (%s)\n  lasting to height %d (%s).\nChain state database corruption likely.\n", __func__,
                        pindexBestForkBase->nHeight, pindexBestForkBase->phashBlock->ToString(),
                        pindexBestForkTip->nHeight, pindexBestForkTip->phashBlock->ToString());
                 SetfLargeWorkForkFound(true);
             }
+        }
         else
         {
-            LogPrintf("%s: Warning: Found invalid chain at least ~6 blocks longer than our best chain.\nChain state database corruption likely.\n", __func__);
+            if(pindexBestInvalid->nHeight > chainActive.Height() + 6)
+                LogPrintf("%s: Warning: Found invalid chain at least ~6 blocks longer than our best chain.\nChain state database corruption likely.\n", __func__);
+            else
+                LogPrintf("%s: Warning: Found invalid chain which has higher work (at least ~6 blocks worth of work) than our best chain.\nChain state database corruption likely.\n", __func__);
             SetfLargeWorkInvalidChainFound(true);
         }
     }
@@ -1727,8 +1733,6 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
         }
     }
 
-    // move best block pointer to prevout block
-    view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     if (fSpentIndex) {
         if (!pblocktree->UpdateSpentIndex(spentIndex)) {
@@ -1748,6 +1752,8 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
         }
     }
 
+    // move best block pointer to prevout block
+    view.SetBestBlock(pindex->pprev->GetBlockHash());
     evoDb->WriteBestBlock(pindex->pprev->GetBlockHash());
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
@@ -1906,17 +1912,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     assert((pindex->phashBlock == nullptr) ||
            (*pindex->phashBlock == block.GetHash()));
     int64_t nTimeStart = GetTimeMicros();
-
-    // Damage control
-    if (sporkManager.IsSporkActive(SPORK_7_CHOKE_CONTROL)) {
-        // during choke, mark any new blocks as invalid
-        uint256 invalidHash = block.GetHash();
-        CBlockIndex* pblockindex = mapBlockIndex[invalidHash];
-        InvalidateBlock(state, chainparams, pblockindex);
-        // .. and as you were
-        ActivateBestChain(state, chainparams);
-        return false;
-    }
 
     // Check it again in case a previous version let a bad block in
     // NOTE: We don't currently (re-)invoke ContextualCheckBlock() or
@@ -2240,7 +2235,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
     int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;
     LogPrint(BCLog::BENCHMARK, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs]\n", nInputs - 1, 0.001 * (nTime4 - nTime2), nInputs <= 1 ? 0 : 0.001 * (nTime4 - nTime2) / (nInputs-1), nTimeVerify * 0.000001);
-
 
     // PAC
 
@@ -2922,7 +2916,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
     return true;
 }
 
-static void NotifyHeaderTip() {
+static bool NotifyHeaderTip() LOCKS_EXCLUDED(cs_main) {
     bool fNotify = false;
     bool fInitialBlockDownload = false;
     static CBlockIndex* pindexHeaderOld = nullptr;
@@ -2940,10 +2934,9 @@ static void NotifyHeaderTip() {
     // Send block tip changed notifications without cs_main
     if (fNotify) {
         uiInterface.NotifyHeaderTip(fInitialBlockDownload, pindexHeader);
-        GetMainSignals().NotifyHeaderTip(pindexHeader, fInitialBlockDownload);
     }
+    return fNotify;
 }
-
 
 /**
  * Make the best chain active, in multiple steps. The result is either failure
@@ -3403,7 +3396,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 
     // Check that the header is valid (particularly PoW).  This is mostly
     // redundant with the call in AcceptBlockHeader.
-    if (!CheckBlockHeader(block, state, consensusParams, fCheckPOW && block.IsProofOfWork()))
+    if (!CheckBlockHeader(block, state, consensusParams, false))
         return false;
 
     // Check the merkle root.
@@ -3669,67 +3662,28 @@ static bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state
 }
 
 // Exposed wrapper for AcceptBlockHeader
-bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, CValidationState& state, const CChainParams& chainparams, const CBlockIndex** ppindex, CBlockHeader *first_invalid,  const CBlockIndex** pindexFirst)
+bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, CValidationState& state, const CChainParams& chainparams, const CBlockIndex** ppindex, CBlockHeader *first_invalid)
 {
     if (first_invalid != nullptr) first_invalid->SetNull();
-
-    if(!IsInitialBlockDownload() && headers.size() > 1) {
-        const CBlockHeader last_header = headers[headers.size()-1];
-        if (last_header.IsProofOfStake() && last_header.GetBlockTime() > FutureDrift(GetAdjustedTime())) {
-            return state.DoS(100, false, REJECT_INVALID, "time-too-new");
-        }
-    }
-
     {
         LOCK(cs_main);
-        bool bFirst = true;
-        bool fInstantBan = false;
-        for (size_t i = 0; i < headers.size(); ++i) {
-            const CBlockHeader& header = headers[i];
-
-            // If the stake has been seen and the header has not yet been seen
-            if (!fReindex && !fImporting && !IsInitialBlockDownload() && header.IsProofOfStake() && setStakeSeen.count(std::make_pair(header.GetHash(), header.nTime)) && !mapBlockIndex.count(header.GetHash())) {
-                // if it is the last header of the list
-                if(i+1 == headers.size()) {
-                    if (first_invalid) *first_invalid = header;
-                    if (fInstantBan) {
-                        // if we've seen a duplicate stake header already in this list, then instaban
-                        return state.DoS(100, false, REJECT_INVALID, "duplicate-stake");
-                    }
-                } else {
-                    // if it is not part of the longest chain, then any error on a subsequent header should result in an instant ban
-                    fInstantBan = true;
-                }
-            }
-
-            CBlockIndex *pindex = nullptr;
-            bool accepted = AcceptBlockHeader(header, state, chainparams, &pindex);
-            CheckBlockIndex(chainparams.GetConsensus());
-
-            if (!accepted) {
+        for (const CBlockHeader& header : headers) {
+            CBlockIndex *pindex = nullptr; // Use a temp pindex instead of ppindex to avoid a const_cast
+            if (!g_chainstate.AcceptBlockHeader(header, state, chainparams, &pindex)) {
                 if (first_invalid) *first_invalid = header;
-                // if we have seen a duplicate stake in this header list previously, then ban immediately.
-                if(fInstantBan) {
-                    return state.DoS(100, false, REJECT_INVALID, "duplicate-stake");
-                }
                 return false;
             }
             if (ppindex) {
                 *ppindex = pindex;
-                if(bFirst && pindexFirst)
-                {
-                    *pindexFirst = pindex;
-                    bFirst = false;
-                }
             }
-       }
-   }
-
-   if (IsInitialBlockDownload() && ppindex && *ppindex) {
-       LogPrintf("Synchronizing blockheaders, height: %d (~%.2f%%)\n", (*ppindex)->nHeight, 100.0/((*ppindex)->nHeight+(GetAdjustedTime() - (*ppindex)->GetBlockTime()) / Params().GetConsensus().nPowTargetSpacing) * (*ppindex)->nHeight);
-   }
-
-   return true;
+        }
+    }
+    if (NotifyHeaderTip()) {
+        if (IsInitialBlockDownload() && ppindex && *ppindex) {
+            LogPrintf("Synchronizing blockheaders, height: %d (~%.2f%%)\n", (*ppindex)->nHeight, 100.0/((*ppindex)->nHeight+(GetAdjustedTime() - (*ppindex)->GetBlockTime()) / Params().GetConsensus().nPowTargetSpacing) * (*ppindex)->nHeight);
+        }
+    }
+    return true;
 }
 
 /** Store block on disk. If dbp is non-nullptr, the file is known to already reside on disk */
@@ -5040,11 +4994,6 @@ bool IsPoS() {
 int ConfirmationsPerNetwork() {
     return (Params().NetworkIDString() ==
             CBaseChainParams::TESTNET ? 20 : 100);
-}
-
-//! Returns whether full DIP3 enforcement is active
-bool FullDIP0003Mode() {
-    return (chainActive.Height() >= Params().GetConsensus().DIP0003EnforcementHeight);
 }
 
 //! Returns whether hardened stake checks are enabled

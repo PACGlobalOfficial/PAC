@@ -54,9 +54,10 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount blockRewar
 
     LogPrintf("        - blockValue %lld <= nSuperblockMaxValue %lld\n", blockValue, nSuperblockMaxValue);
 
-    bool isGenerationHeight = (nBlockHeight == Params().GetConsensus().nGenerationHeight || nBlockHeight == Params().GetConsensus().nGenerationHeight2);
-    if (isGenerationHeight)
+    if (isGenerationBlock(nBlockHeight)) {
+        LogPrint(BCLog::MNPAYMENTS, "generation height %d skipped", nBlockHeight);
         return true;
+    }
 
     if (!CSuperblock::IsValidBlockHeight(nBlockHeight)) {
         // can't possibly be a superblock, so lets just check for block reward limits
@@ -116,30 +117,14 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount blockRewar
 
 bool IsBlockPayeeValid(const CTransaction& txNew, int nBlockHeight, CAmount blockReward)
 {
-    // for nGenerationAmount - make sure this only ever goes to the spork key
-    if (nBlockHeight == Params().GetConsensus().nGenerationHeight ||
-        nBlockHeight == Params().GetConsensus().nGenerationHeight2)
-    {
-        CBitcoinAddress address = Params().SporkAddresses().front();
-        CScript payeeAddr = GetScriptForDestination(address.Get());
-        CAmount nAmountGenerated = (nBlockHeight == Params().GetConsensus().nGenerationHeight) ? Params().GetConsensus().nGenerationAmount : Params().GetConsensus().nGenerationAmount2;
-        for (const auto& tx : txNew.vout) {
-           if (tx.nValue == nAmountGenerated) {
-              if (tx.scriptPubKey == payeeAddr) {
-                  LogPrintf("Found correct recipient at height %d\n", nBlockHeight);
-                  return true;
-              }
-           }
-        }
-        LogPrintf("Didn't find correct recipient at height %d\n", nBlockHeight);
-        return false;
-    }
-
     if(fLiteMode) {
         //there is no budget data to use to check anything, let's just accept the longest chain
         LogPrint(BCLog::MNPAYMENTS, "%s -- WARNING: Not enough data, skipping block payee checks\n", __func__);
         return true;
     }
+
+    if (isGenerationBlock(nBlockHeight))
+        return true;
 
     // we are still using budgets, but we have no data about them anymore,
     // we can only check masternode payments
@@ -198,18 +183,6 @@ void FillBlockPayments(CMutableTransaction& txNew, int nBlockHeight, CAmount blo
     if (!mnpayments.GetMasternodeTxOuts(nBlockHeight, blockReward, voutMasternodePaymentsRet)) {
         LogPrint(BCLog::MNPAYMENTS, "%s -- no masternode to pay (MN list probably empty)\n", __func__);
     }
-
-    ///////////////////////////////////////////////////////////////////////////////////////
-    if (nBlockHeight == Params().GetConsensus().nGenerationHeight ||
-        nBlockHeight == Params().GetConsensus().nGenerationHeight2)
-    {
-        CAmount nAmountGenerated = (nBlockHeight == Params().GetConsensus().nGenerationHeight) ? Params().GetConsensus().nGenerationAmount : Params().GetConsensus().nGenerationAmount2;
-        CBitcoinAddress address = Params().SporkAddresses().front();
-        CScript payeeAddr = GetScriptForDestination(address.Get());
-        CTxOut managementTx = CTxOut(nAmountGenerated, payeeAddr);
-        txNew.vout.push_back(managementTx);
-    }
-    ///////////////////////////////////////////////////////////////////////////////////////
 
     txNew.vout.insert(txNew.vout.end(), voutMasternodePaymentsRet.begin(), voutMasternodePaymentsRet.end());
     txNew.vout.insert(txNew.vout.end(), voutSuperblockPaymentsRet.begin(), voutSuperblockPaymentsRet.end());
@@ -344,7 +317,7 @@ bool CMasternodePayments::GetBlockTxOuts(int nBlockHeight, CAmount blockReward, 
 bool CMasternodePayments::IsScheduled(const CDeterministicMNCPtr& dmnIn, int nNotBlockHeight) const
 {
     // can't verify historical blocks here
-    if (!FullDIP0003Mode()) return true;
+    if (!deterministicMNManager->IsDIP3Enforced()) return true;
 
     auto projectedPayees = deterministicMNManager->GetListAtChainTip().GetProjectedMNPayees(8);
     for (const auto &dmn : projectedPayees) {

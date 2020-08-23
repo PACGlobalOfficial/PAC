@@ -53,7 +53,6 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                         if (mine) {
                             sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
                             sub.type = TransactionRecord::MNReward;
-                            sub.address = CBitcoinAddress(outAddress).ToString();
                             sub.credit = wtx.tx->vout[i].nValue;
                         }
                     }
@@ -63,7 +62,6 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
         {
             isminetype mine = IsMine(*wallet, address);
             sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
-            sub.address = CBitcoinAddress(address).ToString();
             sub.credit = nCredit - nDebit;
             sub.type = TransactionRecord::StakeMint;
         }
@@ -263,8 +261,6 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 }
                 sub.debit = -nValue;
 
-                sub.address.SetString(sub.strAddress);
-                sub.txDest = sub.address.Get();
                 parts.append(sub);
             }
         }

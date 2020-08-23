@@ -2,20 +2,20 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "governancedialog.h"
-#include "ui_governancedialog.h"
+#include "qt/governancedialog.h"
+#include "qt/forms/ui_governancedialog.h"
 
 #include <masternode/masternode-sync.h>
 #include <governance/governance.h>
 #include <governance/governance-vote.h>
 #include <governance/governance-classes.h>
 #include <governance/governance-validators.h>
-#include <bitcoinunits.h>
-#include <guiconstants.h>
-#include <guiutil.h>
+#include <qt/bitcoinunits.h>
+#include <qt/guiconstants.h>
+#include <qt/guiutil.h>
 #include <messagesigner.h>
-#include <optionsmodel.h>
-#include <walletmodel.h>
+#include <qt/optionsmodel.h>
+#include <qt/walletmodel.h>
 #include <validation.h>
 
 #include <QClipboard>

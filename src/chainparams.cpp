@@ -255,12 +255,6 @@ public:
         consensus.nGovernanceMinQuorum = 10;
         consensus.nGovernanceFilterElements = 20000;
         consensus.nHardenedStakeCheckHeight = 387939;
-        ///////////////////////////////////////////////
-        consensus.nGenerationAmount = 700000000 * COIN;
-        consensus.nGenerationHeight = 362250;
-        consensus.nGenerationAmount2 = 1000000000 * COIN;
-        consensus.nGenerationHeight2 = consensus.nHardenedStakeCheckHeight + 50;
-        ///////////////////////////////////////////////
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMasternodeCollateral = 500000 * COIN;
         consensus.BIP34Height = 951;
@@ -269,7 +263,7 @@ public:
         consensus.BIP66Height = 245817;
         consensus.DIP0001Height = 12096;
         consensus.DIP0003Height = 330000;
-        consensus.DIP0003EnforcementHeight = consensus.nGenerationHeight + 50;
+        consensus.DIP0003EnforcementHeight = 363000;
         consensus.DIP0003EnforcementHash = uint256();
         consensus.powLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.posLimit = uint256S("07ffff0000000000000000000000000000000000000000000000000000000000");
@@ -437,10 +431,6 @@ public:
         consensus.nSuperblockCycle = 24;
         consensus.nGovernanceMinQuorum = 1;
         consensus.nGovernanceFilterElements = 500;
-        ///////////////////////////////////////////////
-        consensus.nGenerationAmount = 700000000 * COIN;
-        consensus.nGenerationHeight = 80;
-        ///////////////////////////////////////////////
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nMasternodeCollateral = 1000 * COIN;
         consensus.BIP34Height = 1;
@@ -449,7 +439,7 @@ public:
         consensus.BIP66Height = 0;
         consensus.DIP0001Height = 1;
         consensus.DIP0003Height = 75;
-        consensus.DIP0003EnforcementHeight = consensus.nGenerationHeight + 50;
+        consensus.DIP0003EnforcementHeight = 363000;
         consensus.DIP0003EnforcementHash = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
         consensus.powLimit = uint256S("0000fffff0000000000000000000000000000000000000000000000000000000");
         consensus.posLimit = uint256S("007ffff000000000000000000000000000000000000000000000000000000000");
