@@ -21,6 +21,7 @@
 #include "cuckoocache.h"
 #include "feerates.h"
 #include "fs.h"
+#include "generation.h"
 #include "hash.h"
 #include "kernel.h"
 #include "init.h"
@@ -719,7 +720,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         }
 
         // No transactions are allowed below minRelayTxFee except from disconnected blocks
-        if (!bypass_limits && nModifiedFees < MinRelayFee().GetFee(nSize)) {
+        if (fLimitFree && nModifiedFees < MinRelayFee().GetFee(nSize)) {
             return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "min relay fee not met");
         }
 
@@ -902,13 +903,12 @@ bool GetTransaction(const uint256& hash, CTransactionRef& txOut, const Consensus
 
     } else {
 
-    if (pindexSlow) {
         CBlock block;
-        if (ReadBlockFromDisk(block, pindexSlow, consensusParams)) {
+        if (ReadBlockFromDisk(block, block_index, consensusParams)) {
             for (const auto& tx : block.vtx) {
                 if (tx->GetHash() == hash) {
                     txOut = tx;
-                    hashBlock = pindexSlow->GetBlockHash();
+                    hashBlock = block_index->GetBlockHash();
                     return true;
                 }
             }
@@ -2282,21 +2282,22 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime5_2 = GetTimeMicros(); nTimeSubsidy += nTime5_2 - nTime5_1;
     LogPrint(BCLog::BENCHMARK, "      - GetBlockSubsidy: %.2fms [%.2fs]\n", 0.001 * (nTime5_2 - nTime5_1), nTimeSubsidy * 0.000001);
 
-    if (!IsBlockValueValid(block, pindex->nHeight, blockReward, strError)) {
-        return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
+    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight) {
+       if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
+          if (!isGenerationBlock(pindex->nHeight)) {
+             return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
+          } else {
+             LogPrintf("Allowing large coinbase output (isGenerationBlock is true)\n");
+          }
+       }
     }
 
     int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
     LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
 
     bool isProofOfStake = !block.IsProofOfWork();
-    const auto& coinbaseTransaction = block.vtx[isProofOfStake];
-    if (FullDIP0003Mode() ||
-        pindex->nHeight == Params().GetConsensus().nGenerationHeight ||
-        pindex->nHeight == Params().GetConsensus().nGenerationHeight2) {
-        if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward)) {
-            return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
-       }
+    if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward, pindex->nMint)) {
+        return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
     }
 
     int64_t nTime5_4 = GetTimeMicros(); nTimePayeeValid += nTime5_4 - nTime5_3;
@@ -3669,7 +3670,7 @@ bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, CValidatio
         LOCK(cs_main);
         for (const CBlockHeader& header : headers) {
             CBlockIndex *pindex = nullptr; // Use a temp pindex instead of ppindex to avoid a const_cast
-            if (!g_chainstate.AcceptBlockHeader(header, state, chainparams, &pindex)) {
+            if (!AcceptBlockHeader(header, state, chainparams, &pindex)) {
                 if (first_invalid) *first_invalid = header;
                 return false;
             }

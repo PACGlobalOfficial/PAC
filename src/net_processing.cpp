@@ -1156,14 +1156,16 @@ void static ProcessGetBlockData(CNode* pfrom, const Consensus::Params& consensus
         }
     } // release cs_main before calling ActivateBestChain
     if (need_activate_chain) {
-        CValidationState dummy;
-        ActivateBestChain(dummy, Params(), a_recent_block);
+        CValidationState state;
+        if (!ActivateBestChain(state, Params(), a_recent_block)) {
+            LogPrint(BCLog::NET, "failed to activate chain\n");
+        }
     }
 
     LOCK(cs_main);
-    BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
-    if (mi != mapBlockIndex.end()) {
-        send = BlockRequestAllowed(mi->second, consensusParams);
+    const CBlockIndex* pindex = LookupBlockIndex(inv.hash);
+    if (pindex) {
+        send = BlockRequestAllowed(pindex, consensusParams);
         if (!send) {
             LogPrint(BCLog::NET,"%s: ignoring request from peer=%i for old block that isn't in the main chain\n", __func__, pfrom->GetId());
         }
@@ -1171,7 +1173,7 @@ void static ProcessGetBlockData(CNode* pfrom, const Consensus::Params& consensus
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     // disconnect node in case we have reached the outbound limit for serving historical blocks
     // never disconnect whitelisted nodes
-    if (send && connman->OutboundTargetReached(true) && ( ((pindexBestHeader != nullptr) && (pindexBestHeader->GetBlockTime() - mi->second->GetBlockTime() > HISTORICAL_BLOCK_AGE)) || inv.type == MSG_FILTERED_BLOCK) && !pfrom->fWhitelisted)
+    if (send && connman->OutboundTargetReached(true) && ( ((pindexBestHeader != nullptr) && (pindexBestHeader->GetBlockTime() - pindex->GetBlockTime() > HISTORICAL_BLOCK_AGE)) || inv.type == MSG_FILTERED_BLOCK) && !pfrom->fWhitelisted)
     {
         LogPrint(BCLog::NET, "historical block serving limit reached, disconnect peer=%d\n", pfrom->GetId());
 
@@ -1181,16 +1183,17 @@ void static ProcessGetBlockData(CNode* pfrom, const Consensus::Params& consensus
     }
     // Pruned nodes may have deleted the block, so check whether
     // it's available before trying to send.
-    if (send && (mi->second->nStatus & BLOCK_HAVE_DATA))
+    if (send && (pindex->nStatus & BLOCK_HAVE_DATA))
     {
         std::shared_ptr<const CBlock> pblock;
-        if (a_recent_block && a_recent_block->GetHash() == (*mi).second->GetBlockHash()) {
+        if (a_recent_block && a_recent_block->GetHash() == pindex->GetBlockHash()) {
             pblock = a_recent_block;
         } else {
-            std::shared_ptr<CBlock> pblockRead = std::make_shared<CBlock>();
-            if (!ReadBlockFromDisk(*pblockRead, (*mi).second, consensusParams))
+            std::vector<uint8_t> block_data;
+            if (!ReadRawBlockFromDisk(block_data, pindex, Params().MessageStart())) {
                 assert(!"cannot load block from disk");
-            pblock = pblockRead;
+            }
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::BLOCK, MakeSpan(block_data)));
         }
         if (pblock) {
             if (inv.type == MSG_BLOCK)
