@@ -949,12 +949,8 @@ bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHea
     return true;
 }
 
-#if __APPLE__
-bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams) {
-#else
-bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams, const char* str) {
-    LogPrintf("ReadBlockFromDisk(CDiskBlockPos)::called by %s\n", str);
-#endif
+bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams)
+{
     block.SetNull();
 
     // Open history file to read
@@ -990,12 +986,8 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     return true;
 }
 
-#if __APPLE__
-bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams) {
-#else
-bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams, const char* str) {
-    LogPrintf("ReadBlockFromDisk(CBlockIndex)::called by %s\n", str);
-#endif
+bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams)
+{
     if (!ReadBlockFromDisk(block, pindex->GetBlockPos(), consensusParams))
         return false;
     if (block.GetHash() != pindex->GetBlockHash())
@@ -1004,12 +996,8 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
     return true;
 }
 
-#if __APPLE__
-bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& message_start) {
-#else
-bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& message_start, const char* str) {
-    LogPrintf("ReadRawBlockFromDisk()::called by %s\n", str);
-#endif
+bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& message_start)
+{
     CDiskBlockPos hpos = pos;
     hpos.nPos -= 8; // Seek back 8 bytes for meta header
     CAutoFile filein(OpenBlockFile(hpos, true), SER_DISK, CLIENT_VERSION);
@@ -1043,13 +1031,8 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CDiskBlockPos& pos,
     return true;
 }
 
-#if __APPLE__
-bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex, const CMessageHeader::MessageStartChars& message_start) {
-#else
-bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex, const CMessageHeader::MessageStartChars& message_start, const char* str) {
-    LogPrintf("ReadRawBlockFromDisk()::called by %s\n", str);
-#endif
-
+bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex, const CMessageHeader::MessageStartChars& message_start)
+{
     CDiskBlockPos block_pos;
     {
         LOCK(cs_main);
@@ -2295,9 +2278,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
     LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
 
-    bool isProofOfStake = !block.IsProofOfWork();
-    if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward, pindex->nMint)) {
-        return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
+    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight) {
+        bool isProofOfStake = !block.IsProofOfWork();
+        if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward, pindex->nMint)) {
+            return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
+        }
     }
 
     int64_t nTime5_4 = GetTimeMicros(); nTimePayeeValid += nTime5_4 - nTime5_3;
@@ -3517,7 +3502,7 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
 
     if (block.IsProofOfWork()) {
         if (block.nBits != GetNextWorkRequired(pindexPrev, consensusParams))
-            return state.DoS(100, false, REJECT_INVALID, "bad-diffbits", false, strprintf("incorrect difficulty: block pow=Y bits=%08x calc=%08x",
+            return state.DoS(100, false, REJECT_INVALID, "bad-diffbits", false, strprintf("incorrect difficulty: block bits=%08x calc=%08x",
                              block.nBits, GetNextWorkRequired(pindexPrev, consensusParams)));
     }
 
@@ -3763,9 +3748,6 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
         uint256 hash = block.GetHash();
         if(!mapProofOfStake.count(hash)) // add to mapProofOfStake
             mapProofOfStake.insert(std::make_pair(hash, hashProofOfStake));
-
-        LogPrintf("Block pow=N bits=%08x found=%08x hashProof=%s\n",
-                  GetNextWorkRequired(pindex->pprev, Params().GetConsensus()),block.nBits, hashProofOfStake.ToString().c_str());
     }
 
     int nHeight = pindex->nHeight;

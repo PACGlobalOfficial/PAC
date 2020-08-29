@@ -347,6 +347,9 @@ bool CMasternodePayments::IsScheduled(const CDeterministicMNCPtr& dmnIn, int nNo
 
 bool CMasternodePayments::IsTransactionValid(const CTransaction& txNew, int nBlockHeight, CAmount blockReward) const
 {
+    // using the deterministicMNManager call here results in a segfault at init
+    if (nBlockHeight < Params().GetConsensus().DIP0003Height) return true;
+
     std::vector<CTxOut> voutMasternodePayments;
     if (!GetBlockTxOuts(nBlockHeight, blockReward, voutMasternodePayments)) {
         LogPrintf("CMasternodePayments::%s -- ERROR failed to get payees for block at height %s\n", __func__, nBlockHeight);
