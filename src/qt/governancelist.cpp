@@ -243,7 +243,7 @@ void GovernanceList::updateGobjects()
     ui->tableWidgetGobjects->clearContents();
     ui->tableWidgetGobjects->setRowCount(0);
     int nStartTime = 0;
-for (const auto& pGovObj : governance.GetAllNewerThan(nStartTime)) {
+    for (const auto& pGovObj : governance.GetAllNewerThan(nStartTime)) {
         int gobject = pGovObj->GetObjectType();
         if (gobject == 1) {
             // populate list
@@ -347,11 +347,11 @@ void GovernanceList::ShowGovernanceObject(uint256 gobjectSingle)
     vote_signal_enum_t VotesDelete = vote_signal_enum_t(3);
     vote_signal_enum_t VotesEndorsed = vote_signal_enum_t(4);
     std::string s = pGovObj->GetDataAsHexString();
-    std::string dataString = pGovObj->GetDataAsHexString();
+    std::string dataString = pGovObj->GetDataAsPlainString();
     std::string dataHex = pGovObj->GetDataAsHexString();
-    std::string name = getValue(s,"name", true);
-    std::string url = getValue(s,"url", true);
-    std::string amount = getNumericValue(s,"payment_amount");
+    std::string name = getValue(dataString ,"name", true);
+    std::string url = getValue(dataString, "url", true);
+    std::string amount = getNumericValue(dataString, "payment_amount");
     std::string hash = gobjectSingle.ToString();
     // Funding Variables
     std::string FundingYes = std::to_string(pGovObj->GetYesCount(VotesFunding));
@@ -383,13 +383,7 @@ void GovernanceList::ShowGovernanceObject(uint256 gobjectSingle)
     strHTML += "<p><b>" + tr("Valid Votes") +":</b>" + "<br><span>Yes: " + GUIUtil::HtmlEscape(ValidYes) + "</span>" + "<br><span>No: " + GUIUtil::HtmlEscape(ValidNo) + "</span>" + "<br><span>Abstain: " + GUIUtil::HtmlEscape(ValidAbstain) + "</span>" + "<br><span>Absolute Yes: " + GUIUtil::HtmlEscape(ValidAbYes) + "</span></p>";
     strHTML += "<p><b>" + tr("Delete Votes") +":</b>" + "<br><span>Yes: " + GUIUtil::HtmlEscape(DeleteYes) + "</span>" + "<br><span>No: " + GUIUtil::HtmlEscape(DeleteNo) + "</span>" + "<br><span>Abstain: " + GUIUtil::HtmlEscape(DeleteAbstain) + "</span>" + "<br><span>Absolute Yes: " + GUIUtil::HtmlEscape(DeleteAbYes) + "</span></p>";
     strHTML += "<p><b>" + tr("Endorse Votes") +":</b>" + "<br><span>Yes: " + GUIUtil::HtmlEscape(EndorseYes) + "</span>" + "<br><span>No: " + GUIUtil::HtmlEscape(EndorseNo) + "</span>" + "<br><span>Abstain: " + GUIUtil::HtmlEscape(EndorseAbstain) + "</span>" + "<br><span>Absolute Yes: " + GUIUtil::HtmlEscape(EndorseAbYes) + "</span></p>";
-    strHTML += "<b>" + tr("Raw Information (Hex)") +     ": </b>" + GUIUtil::HtmlEscape(dataHex) + "<br>";
-    strHTML += "<b>" + tr("Raw Information (String)") +     ": </b>" + GUIUtil::HtmlEscape(dataString) + "<br>";
-    //strHTML += "<b>" + tr("Sentinel") +     ": </b>" + (mn.lastPing.nSentinelVersion > DEFAULT_SENTINEL_VERSION ? GUIUtil::HtmlEscape(SafeIntVersionToString(mn.lastPing.nSentinelVersion)) : tr("Unknown")) + "<br>";
-    //strHTML += "<b>" + tr("Status") +       ": </b>" + GUIUtil::HtmlEscape(CMasternode::StateToString(mn.nActiveState)) + "<br>";
-    //strHTML += "<b>" + tr("Payee") +        ": </b>" + GUIUtil::HtmlEscape(CBitcoinAddress(mn.pubKeyCollateralAddress.GetID()).ToString()) + "<br>";
-    //strHTML += "<b>" + tr("Active") +       ": </b>" + GUIUtil::HtmlEscape(DurationToDHMS(mn.lastPing.sigTime - mn.sigTime)) + "<br>";
-    //strHTML += "<b>" + tr("Last Seen") +    ": </b>" + GUIUtil::HtmlEscape(DateTimeStrFormat("%Y-%m-%d %H:%M", mn.lastPing.sigTime + GetOffsetFromUtc())) + "<br>";
+
     // Open Governance dialog
     GovernanceDialog *dialog = new GovernanceDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
