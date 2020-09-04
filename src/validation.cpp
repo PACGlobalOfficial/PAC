@@ -1099,10 +1099,11 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
 	    return 1000000 * COIN;
         }
 
+        CAmount mnPayment = GetMasternodePayment(nPrevHeight + 1, 0);
         if (nPrevHeight + 1 < Params().GetConsensus().DIP0003EnforcementHeight)
-            return GetMasternodePayment(nPrevHeight + 1, 0) + (1 * COIN);
+            return mnPayment + (1 * COIN);
         else
-            return GetMasternodePayment(nPrevHeight + 1, 0) + (100 * COIN);
+            return mnPayment + (100 * COIN);
     }
 
     // proof of work
@@ -2010,17 +2011,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
 
-    /// PAC: Check superblock start
-
-    // make sure old budget is the real one
-    if (pindex->nHeight == chainparams.GetConsensus().nSuperblockStartBlock &&
-        chainparams.GetConsensus().nSuperblockStartHash != uint256() &&
-        block.GetHash() != chainparams.GetConsensus().nSuperblockStartHash)
-            return state.DoS(100, error("ConnectBlock(): invalid superblock start"),
-                             REJECT_INVALID, "bad-sb-start");
-
-    /// END PAC
-
     // Start enforcing BIP68 (sequence locks) and BIP112 (CHECKSEQUENCEVERIFY) using versionbits logic.
     int nLockTimeFlags = 0;
     if (VersionBitsState(pindex->pprev, chainparams.GetConsensus(), Consensus::DEPLOYMENT_CSV, versionbitscache) == THRESHOLD_ACTIVE) {
@@ -2208,8 +2198,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // ppcoin: track money supply and mint amount info
     CAmount nMoneySupplyPrev = pindex->pprev ? pindex->pprev->nMoneySupply : 0;
-    pindex->nMoneySupply = nMoneySupplyPrev + nValueOut - nValueIn;
-    pindex->nMint = pindex->nMoneySupply - nMoneySupplyPrev;
+    pindex->nMoneySupply = nMoneySupplyPrev + (nValueOut - nValueIn);
+    pindex->nMint = nValueOut - nValueIn;
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCHMARK, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime3 - nTime2), 0.001 * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * 0.000001);
@@ -2265,28 +2255,31 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime5_2 = GetTimeMicros(); nTimeSubsidy += nTime5_2 - nTime5_1;
     LogPrint(BCLog::BENCHMARK, "      - GetBlockSubsidy: %.2fms [%.2fs]\n", 0.001 * (nTime5_2 - nTime5_1), nTimeSubsidy * 0.000001);
 
-    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight) {
-       if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
-          if (!isGenerationBlock(pindex->nHeight)) {
-             return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
-          } else {
-             LogPrintf("Allowing large coinbase output (isGenerationBlock is true)\n");
-          }
-       }
-    }
+    int64_t nTime5_4 = nTime5_2;
 
-    int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
-    LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
+    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight)
+    {
+        //! if we fail here, could be a generation block..
+        if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
+               //! where we check here..
+               if (!isGenerationBlock(pindex->nHeight)) {
+                   //! if not.. yr out of luck
+                   return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
+               } else {
+                   LogPrintf("Allowing large coinbase output (isGenerationBlock is true)\n");
+               }
+        }
 
-    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight) {
-        bool isProofOfStake = !block.IsProofOfWork();
-        if (!IsBlockPayeeValid(*block.vtx[isProofOfStake], pindex->nHeight, blockReward, pindex->nMint)) {
+        int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
+        LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
+
+        if (!IsBlockPayeeValid(*block.vtx[1], pindex->nHeight, blockReward, pindex->nMint)) {
             return state.DoS(0, error("ConnectBlock(PAC): couldn't find masternode or superblock payments"), REJECT_INVALID, "bad-cb-payee");
         }
-    }
 
-    int64_t nTime5_4 = GetTimeMicros(); nTimePayeeValid += nTime5_4 - nTime5_3;
-    LogPrint(BCLog::BENCHMARK, "      - IsBlockPayeeValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_4 - nTime5_3), nTimePayeeValid * 0.000001);
+        int64_t nTime5_4 = GetTimeMicros(); nTimePayeeValid += nTime5_4 - nTime5_3;
+        LogPrint(BCLog::BENCHMARK, "      - IsBlockPayeeValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_4 - nTime5_3), nTimePayeeValid * 0.000001);
+    }
 
     if (!ProcessSpecialTxsInBlock(block, pindex, state, fJustCheck, fScriptChecks)) {
         return error("ConnectBlock(PAC): ProcessSpecialTxsInBlock for block failed with %s", FormatStateMessage(state));

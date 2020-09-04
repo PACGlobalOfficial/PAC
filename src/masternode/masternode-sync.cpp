@@ -16,6 +16,12 @@
 class CMasternodeSync;
 CMasternodeSync masternodeSync;
 
+void CMasternodeSync::Fail()
+{
+    nTimeLastFailure = GetTime();
+    nCurrentAsset = MASTERNODE_SYNC_FAILED;
+}
+
 void CMasternodeSync::Reset()
 {
     nCurrentAsset = MASTERNODE_SYNC_INITIAL;
@@ -165,20 +171,6 @@ void CMasternodeSync::ProcessTick(CConnman& connman)
         // initiated from another node, so skip it too.
         if(pnode->fMasternode || (fMasternodeMode && pnode->fInbound)) continue;
 
-        // QUICK MODE (REGTEST ONLY!)
-        if(Params().NetworkIDString() == CBaseChainParams::REGTEST)
-        {
-            if (nCurrentAsset == MASTERNODE_SYNC_WAITING) {
-                connman.PushMessage(pnode, msgMaker.Make(NetMsgType::GETSPORKS)); //get current network sporks
-                SwitchToNextAsset(connman);
-            } else if (nCurrentAsset == MASTERNODE_SYNC_GOVERNANCE) {
-                SendGovernanceSyncRequest(pnode, connman);
-                SwitchToNextAsset(connman);
-            }
-            connman.ReleaseNodeVector(vNodesCopy);
-            return;
-        }
-
         // NORMAL NETWORK MODE - TESTNET/MAINNET
         {
             if ((pnode->fWhitelisted || pnode->m_manual_connection) && !netfulfilledman.HasFulfilledRequest(pnode->addr, strAllow)) {
@@ -208,7 +200,7 @@ void CMasternodeSync::ProcessTick(CConnman& connman)
             // INITIAL TIMEOUT
 
             if(nCurrentAsset == MASTERNODE_SYNC_WAITING) {
-                if(pnode->nVersion >= 70216 && !pnode->fInbound && gArgs.GetBoolArg("-syncmempool", DEFAULT_SYNC_MEMPOOL) && !netfulfilledman.HasFulfilledRequest(pnode->addr, "mempool-sync")) {
+                if(!pnode->fInbound && gArgs.GetBoolArg("-syncmempool", DEFAULT_SYNC_MEMPOOL) && !netfulfilledman.HasFulfilledRequest(pnode->addr, "mempool-sync")) {
                     netfulfilledman.AddFulfilledRequest(pnode->addr, "mempool-sync");
                     connman.PushMessage(pnode, msgMaker.Make(NetMsgType::MEMPOOL));
                     LogPrintf("CMasternodeSync::ProcessTick -- nTick %d nCurrentAsset %d -- syncing mempool from peer=%d\n", nTick, nCurrentAsset, pnode->GetId());
@@ -230,6 +222,11 @@ void CMasternodeSync::ProcessTick(CConnman& connman)
             // GOVOBJ : SYNC GOVERNANCE ITEMS FROM OUR PEERS
 
             if(nCurrentAsset == MASTERNODE_SYNC_GOVERNANCE) {
+                if (fLiteMode) {
+                    SwitchToNextAsset(connman);
+                    connman.ReleaseNodeVector(vNodesCopy);
+                    return;
+                }
                 LogPrint(BCLog::GOBJECT, "CMasternodeSync::ProcessTick -- nTick %d nCurrentAsset %d nTimeLastBumped %lld GetTime() %lld diff %lld\n", nTick, nCurrentAsset, nTimeLastBumped, GetTime(), GetTime() - nTimeLastBumped);
 
                 // check for timeout first

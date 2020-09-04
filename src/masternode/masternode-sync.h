@@ -58,6 +58,7 @@ public:
     std::string GetAssetName();
     std::string GetSyncStatus();
 
+    void Fail();
     void Reset();
     void SwitchToNextAsset(CConnman& connman);
 
