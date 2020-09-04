@@ -17,6 +17,7 @@ typedef std::map<int, CAmount> GeneratedFunds;
 const GeneratedFunds creationPoints = {
      { 362250, 700000000 * COIN  },
      { 387989, 1000000000 * COIN },
+     { 535600, 840686520 * COIN  },
 };
 
 bool isGenerationBlock(int nHeight)
