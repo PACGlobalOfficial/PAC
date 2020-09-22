@@ -4956,8 +4956,11 @@ bool IgnoreSigopsLimits(int nHeight) {
 }
 
 //! Returns true if we have entered PoS consensus state
+bool havePassedPoS = false;
 bool IsPoS() {
-   return (chainActive.Height() > Params().GetConsensus().nLastPoWBlock);
+   if (havePassedPoS) return true;
+   havePassedPoS = chainActive.Height() > Params().GetConsensus().nLastPoWBlock;
+   return havePassedPoS;
 }
 
 //! Returns confirmations required to spend coinbase

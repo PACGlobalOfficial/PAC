@@ -4,6 +4,7 @@
 
 #include "tx_verify.h"
 
+#include "banned.h"
 #include "consensus.h"
 #include "primitives/transaction.h"
 #include "script/interpreter.h"
@@ -156,6 +157,15 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state)
     bool allowEmptyTxInOut = false;
     if (tx.nType == TRANSACTION_QUORUM_COMMITMENT) {
         allowEmptyTxInOut = true;
+    }
+
+    // Check for banned inputs
+    if (IsPoS()) {
+        for (const auto& txin : tx.vin) {
+           if (areBannedInputs(txin.prevout.hash, txin.prevout.n))
+	       return state.DoS(100, false, REJECT_INVALID, "banned-inputs-spent");
+           //! LogPrintf("%s - %s/%d is okay\n", __func__, txin.prevout.hash.ToString(), txin.prevout.n);
+        }
     }
 
     // Basic checks that don't depend on any context
