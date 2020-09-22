@@ -6,3 +6,5 @@
 #include <validation.h>
 
 bool isGenerationBlock(int nHeight);
+CAmount getGenerationAmount(int nHeight);
+bool isGenerationRecipient(std::string recipient);

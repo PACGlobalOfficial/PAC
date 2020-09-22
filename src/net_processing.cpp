@@ -1731,6 +1731,28 @@ void static ProcessOrphanTx(CConnman* connman, std::set<uint256>& orphan_work_se
     }
 }
 
+inline bool versionSchedule(int nVersion)
+{
+    const int nCutoff = 545550;
+    const int nHeight = chainActive.Height();
+    const int minVersion = PROTOCOL_VERSION;
+
+    //! below cutoff height
+    if (nHeight < nCutoff) {
+        //! allow one version below us
+        if (nVersion < minVersion-1)
+            return false;
+        return true;
+    } else {
+        //! version must equal us
+        if (nVersion == minVersion)
+            return true;
+        return false;
+    }
+
+    return false;
+}
+
 bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CConnman* connman, const std::atomic<bool>& interruptMsgProc)
 {
     LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d\n", SanitizeString(strCommand), vRecv.size(), pfrom->GetId());
@@ -1827,7 +1849,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             return false;
         }
 
-        if (nVersion < CurrentProtocol())
+        if (!versionSchedule(nVersion))
         {
             // disconnect from peers older than this proto version
             LogPrintf("peer=%d using obsolete version %i; disconnecting\n", pfrom->GetId(), nVersion);
@@ -1962,6 +1984,13 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         // Must have a version message before anything else
         LOCK(cs_main);
         Misbehaving(pfrom->GetId(), 1);
+        return false;
+    }
+
+    //! in case we cross over the cutoff point with old peers connected
+    if (!versionSchedule(pfrom->nVersion)) {
+        LogPrintf("peer=%d using obsolete version %i now invalid; disconnecting\n", pfrom->GetId(), pfrom->nVersion);
+        pfrom->fDisconnect = true;
         return false;
     }
 

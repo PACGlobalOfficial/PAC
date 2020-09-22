@@ -349,8 +349,6 @@ bool CSuperblockManager::GetSuperblockPayments(int nBlockHeight, std::vector<CTx
             ExtractDestination(payment.script, address1);
             CBitcoinAddress address2(address1);
 
-            // TODO: PRINT NICE N.N PAC OUTPUT
-
             LogPrint(BCLog::GOBJECT, "CSuperblockManager::GetSuperblockPayments -- NEW Superblock: output %d (addr %s, amount %lld)\n",
                         i, address2.ToString(), payment.nAmount);
         } else {
@@ -469,10 +467,8 @@ CAmount CSuperblock::GetPaymentsLimit(int nBlockHeight)
         return 0;
     }
 
-    // min subsidy for high diff networks and vice versa
-    int nBits = consensusParams.fPowAllowMinDifficultyBlocks ? UintToArith256(consensusParams.powLimit).GetCompact() : 1;
     // some part of all blocks issued during the cycle goes to superblock, see GetBlockSubsidy
-    CAmount nSuperblockPartOfSubsidy = GetBlockSubsidy(nBits, nBlockHeight - 1, consensusParams, true);
+    CAmount nSuperblockPartOfSubsidy = GetBlockSubsidy(nBlockHeight - 1, consensusParams, true);
     CAmount nPaymentsLimit = nSuperblockPartOfSubsidy * consensusParams.nSuperblockCycle;
     LogPrint(BCLog::GOBJECT, "CSuperblock::GetPaymentsLimit -- Valid superblock height %d, payments max %lld\n", nBlockHeight, nPaymentsLimit);
 
@@ -515,18 +511,6 @@ void CSuperblock::ParsePaymentSchedule(const std::string& strPaymentAddresses, c
         if (!address.IsValid()) {
             std::ostringstream ostr;
             ostr << "CSuperblock::ParsePaymentSchedule -- Invalid PACGlobal Address : " << vecParsed1[i];
-            LogPrintf("%s\n", ostr.str());
-            throw std::runtime_error(ostr.str());
-        }
-        /*
-            TODO
-
-            - There might be an issue with multisig in the coinbase on mainnet, we will add support for it in a future release.
-            - Post 12.3+ (test multisig coinbase transaction)
-        */
-        if (address.IsScript()) {
-            std::ostringstream ostr;
-            ostr << "CSuperblock::ParsePaymentSchedule -- Script addresses are not supported yet : " << vecParsed1[i];
             LogPrintf("%s\n", ostr.str());
             throw std::runtime_error(ostr.str());
         }
@@ -597,7 +581,7 @@ bool CSuperblock::IsValid(const CTransaction& txNew, int nBlockHeight, CAmount e
     int nPayments = CountPayments();
     int nMinerAndMasternodePayments = nOutputs - nPayments;
 
-    LogPrint(BCLog::GOBJECT, "CSuperblock::IsValid nOutputs = %d, nPayments = %d, GetDataAsHexString = %s\n",
+    LogPrint(BCLog::GOBJECT, "CSuperblock::IsValid -- nOutputs = %d, nPayments = %d, GetDataAsHexString = %s\n",
              nOutputs, nPayments, GetGovernanceObject()->GetDataAsHexString());
 
     // We require an exact match (including order) between the expected
