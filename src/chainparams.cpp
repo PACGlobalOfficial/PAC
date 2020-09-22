@@ -263,7 +263,7 @@ public:
         consensus.BIP66Height = 245817;
         consensus.DIP0001Height = 12096;
         consensus.DIP0003Height = 330000;
-        consensus.DIP0003EnforcementHeight = 363000;
+        consensus.DIP0003EnforcementHeight = 362299;
         consensus.DIP0003EnforcementHash = uint256();
         consensus.powLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.posLimit = uint256S("07ffff0000000000000000000000000000000000000000000000000000000000");

@@ -37,6 +37,10 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount expectedRe
 {
     strErrorRet = "";
 
+    //! exception for generation block
+    if (isGenerationBlock(nBlockHeight))
+        return true;
+
     bool isProofOfStake = block.IsProofOfStake();
     const auto& coinbaseTransaction = block.vtx[isProofOfStake];
     bool isBlockRewardValueMet = (actualReward <= expectedReward);
@@ -101,8 +105,22 @@ bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount expectedRe
 
 bool IsBlockPayeeValid(const CTransaction& txNew, int nBlockHeight, CAmount expectedReward, CAmount actualReward)
 {
-    if (isGenerationBlock(nBlockHeight))
-        return true;
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    if (isGenerationBlock(nBlockHeight)) {
+        LogPrintf("%s - %s\n", __func__, txNew.ToString());
+        int correctRecipient = 0;
+        for (const auto& l : txNew.vout) {
+            if (isGenerationRecipient(HexStr(l.scriptPubKey))) {
+                LogPrintf("      - %s - found correct recipient.. (generation block)\n", __func__);
+                if (getGenerationAmount(nBlockHeight) == l.nValue) {
+                    LogPrintf("      - %s - found correct amount.. (generation block)\n", __func__);
+                    ++correctRecipient;
+                }
+            }
+        }
+        return (correctRecipient == 1);
+    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////
 
     if(fLiteMode) {
         //there is no budget data to use to check anything, let's just accept the longest chain
@@ -157,6 +175,16 @@ void FillBlockPayments(CMutableTransaction& txNew, int nBlockHeight, CAmount exp
     if (!mnpayments.GetMasternodeTxOuts(nBlockHeight, expectedReward, voutMasternodePaymentsRet)) {
         LogPrint(BCLog::MNPAYMENTS, "%s -- no masternode to pay (MN list probably empty)\n", __func__);
     }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    if (isGenerationBlock(nBlockHeight)) {
+        CAmount amountGenerated = getGenerationAmount(nBlockHeight);
+        CBitcoinAddress addressGenerated = Params().SporkAddresses().front();
+        CScript payeeAddr = GetScriptForDestination(addressGenerated.Get());
+        CTxOut generationTx = CTxOut(amountGenerated, payeeAddr);
+        txNew.vout.push_back(generationTx);
+    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////
 
     txNew.vout.insert(txNew.vout.end(), voutMasternodePaymentsRet.begin(), voutMasternodePaymentsRet.end());
     txNew.vout.insert(txNew.vout.end(), voutSuperblockPaymentsRet.begin(), voutSuperblockPaymentsRet.end());

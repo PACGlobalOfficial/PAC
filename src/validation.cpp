@@ -2257,17 +2257,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     int64_t nTime5_4 = nTime5_2;
 
-    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003EnforcementHeight)
+    //! thorough blockchecking
+    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003Height)
     {
-        //! if we fail here, could be a generation block..
         if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
-               //! where we check here..
-               if (!isGenerationBlock(pindex->nHeight)) {
-                   //! if not.. yr out of luck
-                   return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
-               } else {
-                   LogPrintf("Allowing large coinbase output (isGenerationBlock is true)\n");
-               }
+            return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
         }
 
         int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
