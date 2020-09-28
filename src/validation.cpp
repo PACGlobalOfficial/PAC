@@ -2257,8 +2257,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     int64_t nTime5_4 = nTime5_2;
 
+    const int nEnforcedHeight = Params().GetConsensus().DIP0003EnforcementHeight;
+
     //! thorough blockchecking
-    if (pindex->nHeight >= chainparams.GetConsensus().DIP0003Height)
+    if (pindex->nHeight >= nEnforcedHeight)
     {
         if (!IsBlockValueValid(block, pindex->nHeight, blockReward, pindex->nMint, strError)) {
             return state.DoS(0, error("ConnectBlock(PAC): %s", strError), REJECT_INVALID, "bad-cb-amount");
