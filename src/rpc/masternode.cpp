@@ -230,13 +230,17 @@ UniValue masternode_outputs(const JSONRPCRequest& request)
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp))
         return NullUniValue;
 
+    LOCK2(cs_main, pwallet->cs_wallet);
+
     // Find possible candidates
     std::vector<COutput> vPossibleCoins;
-    pwallet->AvailableCoins(vPossibleCoins, true, NULL, false, ONLY_MASTERNODE_COLLATERAL);
+    CAmount nCollateral = Params().GetConsensus().nMasternodeCollateral;
+    int nMasternodeConfirms = Params().GetConsensus().nMasternodeMinimumConfirmations;
+    pwallet->AvailableCoins(vPossibleCoins, true, nullptr, nCollateral, nCollateral, MAX_MONEY, 0, nMasternodeConfirms);
 
     UniValue obj(UniValue::VOBJ);
     for (const auto& out : vPossibleCoins) {
-        obj.push_back(Pair(out.tx->GetHash().ToString(), strprintf("%d", out.i)));
+        obj.pushKV(out.tx->GetHash().ToString(), strprintf("%d", out.i));
     }
 
     return obj;
