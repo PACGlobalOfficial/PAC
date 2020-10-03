@@ -1,4 +1,4 @@
-PACGlobal staging tree 0.15.1
+PACGlobal staging tree 0.15.2
 =============================
 
 https://www.pacglobal.io/
