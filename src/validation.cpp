@@ -3717,27 +3717,27 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
         return error("%s: %s", __func__, FormatStateMessage(state));
     }
 
-    // Header is valid/has work, merkle tree is good...RELAY NOW
-    // (but if it does not build on our best tip, let the SendMessages loop relay it)
-    if (!IsInitialBlockDownload() && chainActive.Tip() == pindex->pprev)
-        GetMainSignals().NewPoWValidBlock(pindex, pblock);
-
     //// hashproof test
     uint256 hashProofOfStake = uint256();
     if (block.IsProofOfStake())
     {
-        if(block.GetHash() == hashProofOfStake)
-           return state.DoS(100, error("CheckBlock(): invalid proof of stake block\n"));
-
         if (!CheckProofOfStake(block, hashProofOfStake, pindex->pprev)) {
             LogPrintf("WARNING: %s: check proof-of-stake failed for block %s\n", __func__, block.GetHash().ToString());
             return false;
         }
 
+        if(hashProofOfStake == uint256())
+           return state.DoS(100, error("CheckBlock(): invalid proof of stake block\n"));
+
         uint256 hash = block.GetHash();
         if(!mapProofOfStake.count(hash)) // add to mapProofOfStake
             mapProofOfStake.insert(std::make_pair(hash, hashProofOfStake));
     }
+
+    // Header is valid/has work, hashproof is good, merkle tree is good...RELAY NOW
+    // (but if it does not build on our best tip, let the SendMessages loop relay it)
+    if (!IsInitialBlockDownload() && chainActive.Tip() == pindex->pprev)
+        GetMainSignals().NewPoWValidBlock(pindex, pblock);
 
     int nHeight = pindex->nHeight;
 
